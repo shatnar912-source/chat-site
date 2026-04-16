@@ -4,85 +4,180 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>كريم 3 • شات نار</title>
-  <meta name="description" content="واجهة شات احترافية عربية تشبه تيليجرام ومجهزة للربط لاحقًا بقاعدة البيانات." />
+  <meta name="description" content="واجهة شات عربية عصرية ومنظمة بلون زهري غامق وموڨ، جاهزة للربط لاحقًا بقاعدة البيانات." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css" />
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
+  <svg aria-hidden="true" focusable="false" class="svg-sprite">
+    <symbol id="i-menu" viewBox="0 0 24 24">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.8-3.8" />
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24">
+      <rect x="4.5" y="10" width="15" height="10" rx="3" />
+      <path d="M8 10V8a4 4 0 0 1 8 0v2" />
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20 12a8 8 0 0 0-14-5.3" />
+      <path d="M5 4.5v4.2h4.2" />
+      <path d="M4 12a8 8 0 0 0 14 5.3" />
+      <path d="M19 19.5v-4.2h-4.2" />
+    </symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24">
+      <path d="M21 12c0 4.4-4 8-9 8a10 10 0 0 1-4.2-.9L3 20l1-4A7.5 7.5 0 0 1 2 12c0-4.4 4-8 9-8s10 3.6 10 8Z" />
+    </symbol>
+    <symbol id="i-send" viewBox="0 0 24 24">
+      <path d="M21 3L10 14" />
+      <path d="M21 3l-7 18-4-8-8-4Z" />
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <path d="M14 3l7 7-3 1-2 4 3 3-2 2-3-3-4 2-1 3-7-7 3-1 2-4-3-3 2-2 3 3 4-2 1-3Z" />
+    </symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24">
+      <path d="M3 7h18" />
+      <path d="M5 7v12h14V7" />
+      <path d="M9 11h6" />
+    </symbol>
+    <symbol id="i-users" viewBox="0 0 24 24">
+      <path d="M17 21v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1" />
+      <circle cx="10" cy="7" r="4" />
+      <path d="M22 21v-1a3 3 0 0 0-2.2-2.9" />
+      <path d="M16 3.3a4 4 0 0 1 0 7.4" />
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </symbol>
+    <symbol id="i-star" viewBox="0 0 24 24">
+      <path d="m12 3 2.7 5.5 6 .9-4.3 4.1 1 5.9-5.4-2.8-5.4 2.8 1-5.9-4.3-4.1 6-.9Z" />
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <rect x="9" y="9" width="10" height="10" rx="2" />
+      <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M6 6l1 14h10l1-14" />
+      <path d="M10 11v5M14 11v5" />
+    </symbol>
+  </svg>
+
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="القائمة الجانبية">
       <div class="sidebar-top">
-        <button class="icon-btn mobile-only" id="closeSidebarBtn" type="button" aria-label="إغلاق القائمة">
-          <i data-lucide="x"></i>
-        </button>
-
-        <div class="profile-card">
-          <div class="avatar">K</div>
-          <div class="profile-text">
+        <div class="brand">
+          <div class="brand-mark">K3</div>
+          <div class="brand-text">
             <strong>كريم 3</strong>
-            <span>شات منظم وسريع</span>
+            <span>واجهة منظمة وسهلة</span>
           </div>
         </div>
+
+        <button class="icon-btn mobile-only" id="closeSidebarBtn" type="button" aria-label="إغلاق القائمة">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
       </div>
 
-      <div class="search-wrap">
-        <i data-lucide="search"></i>
+      <div class="sidebar-search">
+        <svg class="icon muted-icon"><use href="#i-search"></use></svg>
         <input id="searchInput" type="text" placeholder="ابحث في الرسائل..." autocomplete="off" />
       </div>
 
-      <div class="chat-summary">
-        <div class="summary-box">
-          <span>الحالة</span>
-          <strong id="statusBadge">Local</strong>
+      <div class="summary-grid">
+        <div class="summary-card accent">
+          <span>الوضع</span>
+          <strong id="statusBadge">محلي</strong>
         </div>
-        <div class="summary-box">
-          <span>الرسائل</span>
+        <div class="summary-card">
+          <span>الكل</span>
           <strong id="totalCountText">0</strong>
+        </div>
+        <div class="summary-card">
+          <span>الشات العام</span>
+          <strong id="publicCountText">0</strong>
+        </div>
+        <div class="summary-card">
+          <span>الخاص</span>
+          <strong id="privateCountText">0</strong>
         </div>
       </div>
 
-      <nav class="nav-grid">
-        <button class="nav-btn active" data-tab="chat" type="button">
-          <i data-lucide="messages-square"></i>
-          <span>المحادثة</span>
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="chat" type="button">
+          <svg class="icon"><use href="#i-chat"></use></svg>
+          <span>الشات</span>
         </button>
-        <button class="nav-btn" data-tab="search" type="button">
-          <i data-lucide="search"></i>
-          <span>البحث</span>
+        <button class="tab-btn" data-tab="private" type="button">
+          <svg class="icon"><use href="#i-lock"></use></svg>
+          <span>خاص</span>
         </button>
-        <button class="nav-btn" data-tab="tools" type="button">
-          <i data-lucide="settings-2"></i>
-          <span>الأدوات</span>
+        <button class="tab-btn" data-tab="search" type="button">
+          <svg class="icon"><use href="#i-search"></use></svg>
+          <span>بحث</span>
         </button>
-      </nav>
+        <button class="tab-btn" data-tab="tools" type="button">
+          <svg class="icon"><use href="#i-star"></use></svg>
+          <span>أدوات</span>
+        </button>
+      </div>
 
-      <div class="side-panels">
+      <div class="panel-stack">
         <section class="panel active" id="panel-chat">
           <div class="panel-card">
             <div class="panel-head">
-              <h2>الغرفة الحالية</h2>
+              <h2>الشات العام</h2>
               <span class="pill">عام</span>
             </div>
-            <button class="room-card active" type="button">
+            <button class="room-card active" type="button" data-channel="public">
               <div class="room-icon">A</div>
-              <div class="room-text">
+              <div class="room-copy">
                 <strong>الشات العام</strong>
-                <span id="chatCountText">0 رسالة</span>
+                <span id="publicPreviewText">ابدأ أول رسالة هنا</span>
               </div>
-              <i data-lucide="chevron-left"></i>
+              <svg class="icon chevron"><use href="#i-pin"></use></svg>
             </button>
           </div>
 
           <div class="panel-card">
             <div class="panel-head">
-              <h2>الجاهزية</h2>
-              <span class="pill soft">Ready</span>
+              <h2>جاهز للتوصيل</h2>
+              <span class="pill soft">نظيف</span>
             </div>
-            <p class="muted" id="statusText">
-              الواجهة تعمل محليًا الآن، ومجهزة لملف قاعدة البيانات لاحقًا بدون تعديل التصميم.
+            <p class="note">
+              التصميم مرتب ومفتوح للتطوير، والاتصال بقاعدة البيانات ممكن يتضاف لاحقًا من غير ما نغيّر الواجهة.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-private">
+          <div class="panel-card">
+            <div class="panel-head">
+              <h2>الرسائل الخاصة</h2>
+              <span class="pill private">خاص</span>
+            </div>
+            <button class="room-card private-room" type="button" id="privateRoomBtn">
+              <div class="room-icon private">P</div>
+              <div class="room-copy">
+                <strong>الرسائل الخاصة</strong>
+                <span id="privatePreviewText">محادثة خاصة ومحمية</span>
+              </div>
+              <svg class="icon chevron"><use href="#i-lock"></use></svg>
+            </button>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-head">
+              <h2>إعداد الخصوصية</h2>
+              <span class="pill soft">مفعل</span>
+            </div>
+            <p class="note">
+              يمكنك التبديل بين العام والخاص من الشريط العلوي، وسيبقى كل قسم مستقلًا حتى بعد تحديث الصفحة.
             </p>
           </div>
         </section>
@@ -93,7 +188,7 @@
               <h2>نتائج البحث</h2>
               <span class="pill" id="searchCountBadge">0</span>
             </div>
-            <div id="searchResults" class="stack">
+            <div class="stack" id="searchResults">
               <div class="empty-state">اكتب في البحث.</div>
             </div>
           </div>
@@ -103,32 +198,38 @@
           <div class="panel-card">
             <div class="panel-head">
               <h2>الأدوات</h2>
-              <span class="pill soft">Quick</span>
+              <span class="pill soft">سريع</span>
             </div>
 
-            <div class="tool-list">
+            <div class="tools-list">
               <div class="tool-row">
                 <div>
                   <strong>نسخ آخر رسالة</strong>
-                  <span>انسخ آخر محتوى محفوظ</span>
+                  <span>للاستخدام السريع</span>
                 </div>
-                <button class="mini-btn" type="button" id="copyLastBtn">نسخ</button>
+                <button class="mini-btn" type="button" id="copyLastBtn">
+                  <svg class="icon"><use href="#i-copy"></use></svg>
+                  نسخ
+                </button>
               </div>
 
               <div class="tool-row">
                 <div>
                   <strong>مسح الرسائل</strong>
-                  <span>يحذف الرسائل من الجهاز الآن</span>
+                  <span>يمسح القسم الحالي فقط</span>
                 </div>
-                <button class="mini-btn danger" type="button" id="clearBtn">مسح</button>
+                <button class="mini-btn danger" type="button" id="clearBtn">
+                  <svg class="icon"><use href="#i-trash"></use></svg>
+                  مسح
+                </button>
               </div>
 
               <div class="tool-row">
                 <div>
-                  <strong>وضع التخزين</strong>
-                  <span>يبين هل الاتصال بقاعدة البيانات جاهز</span>
+                  <strong>جاهزية الربط</strong>
+                  <span>الواجهة تقبل ملف ربط لاحقًا</span>
                 </div>
-                <span class="mini-tag" id="storageModeText">محلي</span>
+                <span class="badge-chip" id="storageModeText">محلي</span>
               </div>
             </div>
           </div>
@@ -140,78 +241,45 @@
       <header class="topbar">
         <div class="topbar-left">
           <button class="icon-btn" id="privateMessagesBtn" type="button" aria-label="الرسائل الخاصة" title="الرسائل الخاصة">
-            <i data-lucide="message-square-lock"></i>
+            <svg class="icon"><use href="#i-lock"></use></svg>
           </button>
         </div>
 
-        <button class="title-chip" id="chatTitleBtn" type="button" aria-label="تحديث الصفحة">
-          شات نار
+        <button class="title-chip" id="chatTitleBtn" type="button" aria-label="تحديث الصفحة" title="اضغط للتحديث">
+          <span>شات نار</span>
+          <svg class="icon title-icon"><use href="#i-refresh"></use></svg>
         </button>
 
         <div class="topbar-right">
-          <button class="icon-btn" id="scrollTopBtn" type="button" aria-label="السهم للأعلى" title="أعلى الصفحة">
-            <i data-lucide="arrow-up"></i>
+          <button class="icon-btn" id="scrollTopBtn" type="button" aria-label="أعلى الصفحة" title="أعلى الصفحة">
+            <svg class="icon"><use href="#i-refresh"></use></svg>
           </button>
 
           <button class="icon-btn" id="openSidebarBtn" type="button" aria-label="فتح القائمة" title="القائمة">
-            <i data-lucide="menu"></i>
+            <svg class="icon"><use href="#i-menu"></use></svg>
           </button>
         </div>
       </header>
 
-      <section class="hero">
-        <div class="hero-copy">
-          <h2>كريم 3</h2>
-          <p>
-            تصميم واضح ومريح للمستخدم، بخانات مرتبة، وبحث سريع، وبلا تعقيد.
-            جاهز للربط لاحقًا بملف قاعدة البيانات من غير ما نلمس الواجهة.
-          </p>
-
-          <div class="hero-actions">
-            <button class="btn btn-primary" id="goToChatBtn" type="button">اذهب للشات</button>
-            <button class="btn btn-secondary" id="goToSearchBtn" type="button">البحث</button>
-            <button class="btn btn-secondary" id="goToToolsBtn" type="button">الأدوات</button>
-          </div>
+      <section class="workspace-head">
+        <div class="workspace-copy">
+          <div class="workspace-kicker">واجهة محادثة عربية حديثة</div>
+          <h1 id="channelTitle">الشات العام</h1>
+          <p id="channelSubtitle">تصميم نظيف بلون زهري غامق وموڨ، مع مساحة رسائل سهلة وواضحة.</p>
         </div>
 
-        <div class="hero-grid">
-          <div class="hero-card">
-            <strong>واجهة نظيفة</strong>
-            <span>شكل بسيط ومريح للعين</span>
-          </div>
-          <div class="hero-card">
-            <strong>جاهز للربط</strong>
-            <span>ملف DB يتركب لاحقًا بسهولة</span>
-          </div>
-          <div class="hero-card">
-            <strong>بحث فوري</strong>
-            <span>فلترة الرسائل فور الكتابة</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="stats">
-        <div class="stat">
-          <i data-lucide="message-circle"></i>
-          <div>
+        <div class="workspace-stats">
+          <div class="mini-stat">
+            <span>الرسائل</span>
             <strong id="statMessages">0</strong>
-            <span>رسالة محفوظة</span>
           </div>
-        </div>
-
-        <div class="stat">
-          <i data-lucide="sparkles"></i>
-          <div>
-            <strong>Modern</strong>
-            <span>تصميم شيك ومرتب</span>
+          <div class="mini-stat">
+            <span>الخاص</span>
+            <strong id="statPrivate">0</strong>
           </div>
-        </div>
-
-        <div class="stat">
-          <i data-lucide="plug-zap"></i>
-          <div>
-            <strong>Ready</strong>
-            <span>قابل للربط لاحقًا</span>
+          <div class="mini-stat">
+            <span>الحالة</span>
+            <strong id="connectionBadge">محلي</strong>
           </div>
         </div>
       </section>
@@ -219,14 +287,14 @@
       <section class="chat-shell" id="chatShell">
         <div class="chat-head">
           <div class="chat-head-left">
-            <div class="chat-avatar">🔥</div>
+            <div class="chat-avatar" id="chatAvatar">🔥</div>
             <div>
-              <h2>الشات العام</h2>
-              <p>الرسائل تظهر هنا بشكل منظم</p>
+              <h2 id="chatName">الشات العام</h2>
+              <p id="chatDescription">اكتب أول رسالة من الأسفل.</p>
             </div>
           </div>
 
-          <div class="pill">عام</div>
+          <div class="pill" id="activeChannelBadge">عام</div>
         </div>
 
         <div class="messages" id="messages">
@@ -234,12 +302,12 @@
         </div>
 
         <form class="composer" id="msgForm" autocomplete="off">
-          <button class="attach-btn" type="button" aria-label="إرفاق">
-            <i data-lucide="paperclip"></i>
+          <button class="attach-btn" type="button" id="attachBtn" aria-label="إرفاق">
+            <svg class="icon"><use href="#i-archive"></use></svg>
           </button>
           <input id="msgInput" type="text" placeholder="اكتب رسالة..." maxlength="1000" />
           <button class="send-btn" type="submit" aria-label="إرسال">
-            <i data-lucide="send"></i>
+            <svg class="icon"><use href="#i-send"></use></svg>
           </button>
         </form>
       </section>
