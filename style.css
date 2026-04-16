@@ -1,23 +1,23 @@
 :root {
-  --bg: #0e0816;
-  --bg-2: #160f26;
-  --panel: rgba(28, 17, 44, 0.92);
-  --panel-strong: rgba(35, 21, 55, 0.98);
+  --bg: #0d0714;
+  --bg-2: #120b1d;
+  --panel: rgba(26, 16, 40, 0.92);
+  --panel-strong: rgba(33, 20, 51, 0.98);
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
-  --text: #f5efff;
-  --muted: rgba(245, 239, 255, 0.68);
-  --muted-2: rgba(245, 239, 255, 0.48);
+  --text: #f7f1ff;
+  --muted: rgba(247, 241, 255, 0.7);
+  --muted-2: rgba(247, 241, 255, 0.5);
   --accent: #ff4fd8;
   --accent-2: #8f59ff;
   --accent-soft: rgba(255, 79, 216, 0.14);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
   --radius-xl: 28px;
   --radius-lg: 22px;
   --radius-md: 18px;
   --radius-sm: 14px;
-  --sidebar-w: 380px;
-  --topbar-h: 66px;
+  --sidebar-w: 390px;
+  --topbar-h: 68px;
   color-scheme: dark;
 }
 
@@ -32,7 +32,7 @@ body {
   background:
     radial-gradient(circle at top right, rgba(255, 79, 216, 0.16), transparent 28%),
     radial-gradient(circle at top left, rgba(143, 89, 255, 0.18), transparent 24%),
-    linear-gradient(180deg, var(--bg), #09060f 72%);
+    linear-gradient(180deg, var(--bg), #08050c 72%);
   color: var(--text);
   font-family: "Cairo", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -70,7 +70,7 @@ svg {
 .sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  background: linear-gradient(180deg, rgba(30, 18, 48, 0.98), rgba(18, 11, 29, 0.98));
+  background: linear-gradient(180deg, rgba(33, 20, 51, 0.98), rgba(19, 12, 30, 0.98));
   border-inline-start: 1px solid var(--line);
   padding: 18px;
   display: flex;
@@ -88,15 +88,32 @@ svg {
   justify-content: space-between;
 }
 
-.brand-text strong {
-  font-size: 1.06rem;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, rgba(255, 79, 216, 0.2), rgba(143, 89, 255, 0.22));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   font-weight: 900;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.brand-copy strong {
+  font-size: 1.02rem;
+  font-weight: 900;
 }
 
 .icon-btn,
 .title-chip,
-.attach-btn,
 .send-btn {
   border: 0;
   outline: none;
@@ -119,8 +136,6 @@ svg {
 .icon-btn:focus-visible,
 .title-chip:hover,
 .title-chip:focus-visible,
-.attach-btn:hover,
-.attach-btn:focus-visible,
 .send-btn:hover,
 .send-btn:focus-visible {
   transform: translateY(-1px);
@@ -179,7 +194,24 @@ svg {
   margin: 0;
   font-size: 1rem;
   font-weight: 900;
-  color: var(--text);
+}
+
+.pill,
+.status-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 79, 216, 0.12);
+  border: 1px solid rgba(255, 79, 216, 0.18);
+  color: #ffd9f5;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pill.soft {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--line);
+  color: var(--muted);
 }
 
 .online-list {
@@ -196,6 +228,7 @@ svg {
   align-items: center;
   gap: 12px;
   padding: 12px;
+  min-height: 72px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--line);
@@ -210,7 +243,7 @@ svg {
 
 .user-row.selected {
   background: linear-gradient(135deg, rgba(255, 79, 216, 0.12), rgba(143, 89, 255, 0.12));
-  border-color: rgba(255, 79, 216, 0.25);
+  border-color: rgba(255, 79, 216, 0.24);
 }
 
 .user-main {
@@ -226,7 +259,9 @@ svg {
   text-align: start;
 }
 
-.avatar {
+.avatar,
+.private-avatar,
+.chat-avatar {
   width: 42px;
   height: 42px;
   border-radius: 16px;
@@ -240,7 +275,9 @@ svg {
   overflow: hidden;
 }
 
-.avatar.photo {
+.avatar.photo,
+.private-avatar.photo,
+.chat-avatar.photo {
   background-size: cover;
   background-position: center;
 }
@@ -273,7 +310,7 @@ svg {
   padding: 3px 10px;
   border-radius: 999px;
   background: rgba(255, 79, 216, 0.14);
-  color: #ffc9f1;
+  color: #ffd3f2;
   border: 1px solid rgba(255, 79, 216, 0.18);
   font-size: 0.72rem;
   font-weight: 800;
@@ -299,7 +336,7 @@ svg {
 .main {
   flex: 1;
   min-width: 0;
-  padding: 16px 16px 16px 16px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -308,7 +345,7 @@ svg {
 .topbar {
   min-height: var(--topbar-h);
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -319,15 +356,9 @@ svg {
   backdrop-filter: blur(18px);
 }
 
-.topbar-left,
-.topbar-right {
+.topbar-left {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.topbar-right {
-  justify-content: flex-end;
 }
 
 .title-chip {
@@ -343,7 +374,6 @@ svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: 0.2px;
 }
 
 .chat-shell {
@@ -354,7 +384,7 @@ svg {
   gap: 14px;
   padding: 16px;
   border-radius: var(--radius-xl);
-  background: rgba(25, 15, 39, 0.72);
+  background: rgba(25, 15, 39, 0.74);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
@@ -377,19 +407,18 @@ svg {
   min-width: 0;
 }
 
-.chat-avatar,
+.chat-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  font-size: 1.15rem;
+}
+
 .private-avatar {
   width: 52px;
   height: 52px;
   border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, rgba(255, 79, 216, 0.2), rgba(143, 89, 255, 0.24));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text);
-  font-weight: 900;
-  font-size: 1.15rem;
-  flex: 0 0 auto;
+  font-size: 1.1rem;
 }
 
 .chat-head h1,
@@ -404,17 +433,6 @@ svg {
   margin: 3px 0 0;
   color: var(--muted);
   font-size: 0.85rem;
-}
-
-.pill {
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 79, 216, 0.12);
-  border: 1px solid rgba(255, 79, 216, 0.18);
-  color: #ffd9f5;
-  font-size: 0.82rem;
-  font-weight: 800;
-  white-space: nowrap;
 }
 
 .messages {
@@ -549,7 +567,6 @@ svg {
   color: var(--muted-2);
 }
 
-.attach-btn,
 .send-btn {
   width: 52px;
   height: 52px;
@@ -558,13 +575,6 @@ svg {
   align-items: center;
   justify-content: center;
   color: var(--text);
-}
-
-.attach-btn {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.send-btn {
   background: linear-gradient(135deg, rgba(255, 79, 216, 0.96), rgba(143, 89, 255, 0.94));
   box-shadow: 0 14px 28px rgba(255, 79, 216, 0.16);
 }
@@ -588,8 +598,9 @@ svg {
 
 .private-drawer {
   position: fixed;
-  inset-block: 16px;
-  inset-inline-end: 16px;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
   width: min(420px, calc(100vw - 32px));
   border-radius: 28px;
   background: rgba(20, 12, 31, 0.96);
@@ -600,7 +611,7 @@ svg {
   flex-direction: column;
   gap: 14px;
   padding: 16px;
-  transform: translateX(110%);
+  transform: translateX(-112%);
   transition: transform 0.24s ease;
   z-index: 35;
 }
@@ -658,7 +669,9 @@ svg {
 
   .sidebar {
     position: fixed;
-    inset: 0 0 0 auto;
+    top: 0;
+    bottom: 0;
+    right: 0;
     width: min(var(--sidebar-w), calc(100vw - 42px));
     min-width: 0;
     z-index: 40;
@@ -685,7 +698,9 @@ svg {
   }
 
   .private-drawer {
-    inset: 14px;
+    top: 14px;
+    bottom: 14px;
+    left: 14px;
     width: auto;
     max-width: none;
   }
@@ -693,7 +708,7 @@ svg {
 
 @media (max-width: 720px) {
   .topbar {
-    grid-template-columns: 52px minmax(0, 1fr) 52px;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
     padding: 8px;
   }
 
@@ -706,7 +721,6 @@ svg {
     height: 48px;
   }
 
-  .attach-btn,
   .send-btn {
     width: 48px;
     height: 48px;
