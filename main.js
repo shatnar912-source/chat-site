@@ -1,51 +1,47 @@
+// main.js
 import {
-  auth,
   db,
   publicMessagesRef,
   usersOnlineRef,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
   addDoc,
   setDoc,
-  deleteDoc,
-  getDoc,
+  doc,
+  onSnapshot,
   query,
-  where,
   orderBy,
   limit,
-  onSnapshot,
 } from "./firebase.js";
 
 import {
   collection,
-  doc,
+  getDoc,
+  deleteDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 window.KAREEM3_STATUS = window.KAREEM3_STATUS || {};
 window.KAREEM3_STATUS.main = true;
 window.KAREEM3_STATUS.ui = true;
 
-const ADMIN_EMAIL = "shatnar912@gmail.com";
+const APP_KEY = "kareem3_mot7add";
 const MAX_PUBLIC_MESSAGES = 70;
 const MAX_PROFILE_VISITS = 20;
 const FEATURED_ACTIVITY_WINDOW_MS = 10 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 20 * 1000;
 
 const state = {
-  user: null,
+  me: null,
   profile: null,
   profilesCache: [],
   publicMessages: [],
   onlineUsers: [],
   featuredUsers: [],
-  recentPrivateChats: [],
+  privateChats: [],
+  privateMessages: [],
   activePrivateChatId: null,
   activePrivatePartner: null,
-  privateMessages: [],
   unreadMap: loadJSON("kareem3_unread_map", {}),
-  seenChatMap: loadJSON("kareem3_seen_chat_map", {}),
+  seenMap: loadJSON("kareem3_seen_map", {}),
   heartbeatTimer: null,
 
   publicUnsub: null,
@@ -57,50 +53,36 @@ const state = {
 };
 
 const el = {
-  authScreen: document.getElementById("authScreen"),
-  mainScreen: document.getElementById("mainScreen"),
-  profileScreen: document.getElementById("profileScreen"),
-  privateChatScreen: document.getElementById("privateChatScreen"),
-
-  authForm: document.getElementById("authForm"),
-  authEmail: document.getElementById("authEmail"),
-  authPassword: document.getElementById("authPassword"),
-  loginBtn: document.getElementById("loginBtn"),
-  registerBtn: document.getElementById("registerBtn"),
-  authMessage: document.getElementById("authMessage"),
-
+  rightPanel: document.getElementById("rightPanel"),
+  leftPanel: document.getElementById("leftPanel"),
   openRightPanelBtn: document.getElementById("openRightPanelBtn"),
   openLeftPanelBtn: document.getElementById("openLeftPanelBtn"),
   closeRightPanelBtn: document.getElementById("closeRightPanelBtn"),
   closeLeftPanelBtn: document.getElementById("closeLeftPanelBtn"),
 
-  rightPanel: document.getElementById("rightPanel"),
-  leftPanel: document.getElementById("leftPanel"),
-
-  profileAvatar: document.getElementById("profileAvatar"),
-  profileName: document.getElementById("profileName"),
-  profileUsername: document.getElementById("profileUsername"),
-
   globalSearchInput: document.getElementById("globalSearchInput"),
-  onlineUsersList: document.getElementById("onlineUsersList"),
-  featuredUsersList: document.getElementById("featuredUsersList"),
-  privateChatsList: document.getElementById("privateChatsList"),
   publicMessages: document.getElementById("publicMessages"),
   publicMessageForm: document.getElementById("publicMessageForm"),
   publicMessageInput: document.getElementById("publicMessageInput"),
 
+  onlineUsersList: document.getElementById("onlineUsersList"),
+  featuredUsersList: document.getElementById("featuredUsersList"),
+  privateChatsList: document.getElementById("privateChatsList"),
   privateSearchInput: document.getElementById("privateSearchInput"),
+
   privateMessagesBadge: document.getElementById("privateMessagesBadge"),
   visitedBadge: document.getElementById("visitedBadge"),
   visitedProfileBtn: document.getElementById("visitedProfileBtn"),
   settingsBtn: document.getElementById("settingsBtn"),
   logoutBtn: document.getElementById("logoutBtn"),
 
-  adminFilesPanel: document.getElementById("adminFilesPanel"),
-  statusIndex: document.getElementById("statusIndex"),
-  statusMain: document.getElementById("statusMain"),
-  statusFirebase: document.getElementById("statusFirebase"),
-  statusStyle: document.getElementById("statusStyle"),
+  profileAvatar: document.getElementById("profileAvatar"),
+  profileName: document.getElementById("profileName"),
+  profileUsername: document.getElementById("profileUsername"),
+
+  profileScreen: document.getElementById("profileScreen"),
+  privateChatScreen: document.getElementById("privateChatScreen"),
+  mainScreen: document.getElementById("mainScreen"),
 
   backToMainBtn: document.getElementById("backToMainBtn"),
   profilePageAvatar: document.getElementById("profilePageAvatar"),
@@ -127,13 +109,32 @@ const el = {
   privateMessages: document.getElementById("privateMessages"),
   privateMessageForm: document.getElementById("privateMessageForm"),
   privateMessageInput: document.getElementById("privateMessageInput"),
+
+  adminFilesPanel: document.getElementById("adminFilesPanel"),
+  statusIndex: document.getElementById("statusIndex"),
+  statusMain: document.getElementById("statusMain"),
+  statusFirebase: document.getElementById("statusFirebase"),
+  statusStyle: document.getElementById("statusStyle"),
 };
 
-let globalSearchResultsBox = null;
-ensureGlobalSearchResultsBox();
+let searchResultsBox = null;
+ensureSearchResultsBox();
 
-bindEvents();
-bootstrap();
+init();
+
+function init() {
+  state.me = loadOrCreateLocalProfile();
+  renderTopProfile();
+  updateSystemStatusUI();
+  bindEvents();
+  startPresence();
+  listenProfiles();
+  listenPublicMessages();
+  listenOnlineUsers();
+  listenPrivateChats();
+  listenVisits();
+  touchPresence();
+}
 
 function loadJSON(key, fallback) {
   try {
@@ -148,30 +149,20 @@ function saveJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function uid() {
+  return loadJSON(`${APP_KEY}_uid`, null);
+}
+
+function setUid(id) {
+  localStorage.setItem(`${APP_KEY}_uid`, id);
+}
+
+function makeId(prefix = "u") {
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+}
+
 function now() {
   return Date.now();
-}
-
-function isAdminUser() {
-  return !!state.user && state.user.email === ADMIN_EMAIL;
-}
-
-function setAuthMessage(text, type = "info") {
-  if (!el.authMessage) return;
-  el.authMessage.textContent = text || "";
-  el.authMessage.dataset.type = type;
-}
-
-function showScreen(name) {
-  el.authScreen.classList.toggle("hidden", name !== "auth");
-  el.mainScreen.classList.toggle("hidden", name !== "main");
-  el.profileScreen.classList.toggle("hidden", name !== "profile");
-  el.privateChatScreen.classList.toggle("hidden", name !== "privateChat");
-}
-
-function closePanels() {
-  el.rightPanel.classList.remove("open");
-  el.leftPanel.classList.remove("open");
 }
 
 function safeText(v, fallback = "-") {
@@ -179,22 +170,13 @@ function safeText(v, fallback = "-") {
   return String(v);
 }
 
-function getProfileDisplayName(profile, userEmail = "") {
-  const name = profile?.name || profile?.displayName || "";
-  if (name.trim()) return name.trim();
-  if (userEmail.includes("@")) return userEmail.split("@")[0];
-  return "مستخدم";
-}
-
-function getProfileUsername(profile, userEmail = "") {
-  const raw = profile?.username || "";
-  if (raw.trim()) return raw.startsWith("@") ? raw : `@${raw}`;
-  if (userEmail.includes("@")) return `@${userEmail.split("@")[0]}`;
-  return "@user";
-}
-
-function chatIdFor(a, b) {
-  return [a, b].sort().join("__");
+function esc(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function timeLabel(ts) {
@@ -209,13 +191,22 @@ function timeLabel(ts) {
   });
 }
 
-function escapeHTML(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function getDisplayName(p = {}) {
+  if (p.name && String(p.name).trim()) return String(p.name).trim();
+  if (p.username && String(p.username).trim()) return String(p.username).replace(/^@/, "");
+  return "مستخدم";
+}
+
+function getUsername(p = {}) {
+  if (p.username && String(p.username).trim()) {
+    return String(p.username).startsWith("@") ? String(p.username) : `@${p.username}`;
+  }
+  const base = getDisplayName(p).toLowerCase().replace(/\s+/g, "");
+  return `@${base || "user"}`;
+}
+
+function chatIdFor(a, b) {
+  return [a, b].sort().join("__");
 }
 
 function setDot(elm, show, value = 0) {
@@ -235,18 +226,87 @@ function setSystemDot(elm, ok) {
   elm.style.color = ok ? "#34c759" : "#ff3b30";
 }
 
+function isAdminMode() {
+  return localStorage.getItem(`${APP_KEY}_admin`) === "1";
+}
+
 function updateSystemStatusUI() {
   setSystemDot(el.statusIndex, true);
   setSystemDot(el.statusMain, true);
   setSystemDot(el.statusFirebase, !!window.KAREEM3_STATUS.firebase);
   setSystemDot(el.statusStyle, true);
-  el.adminFilesPanel.classList.toggle("hidden", !isAdminUser());
+  if (el.adminFilesPanel) {
+    el.adminFilesPanel.classList.toggle("hidden", !isAdminMode());
+  }
+}
+
+function loadOrCreateLocalProfile() {
+  let id = uid();
+  if (!id) {
+    id = makeId("k3");
+    setUid(id);
+  }
+
+  const stored = loadJSON(`${APP_KEY}_profile`, null);
+  if (stored) return stored;
+
+  const suffix = id.slice(-4).toUpperCase();
+  const profile = {
+    uid: id,
+    name: `ضيف ${suffix}`,
+    username: `@guest${suffix.toLowerCase()}`,
+    age: "",
+    nationality: "",
+    gender: "",
+    bio: "",
+    createdAt: now(),
+    updatedAt: now(),
+  };
+
+  saveJSON(`${APP_KEY}_profile`, profile);
+  return profile;
+}
+
+function saveLocalProfile(profile) {
+  state.me = { ...state.me, ...profile, updatedAt: now() };
+  saveJSON(`${APP_KEY}_profile`, state.me);
+  renderTopProfile();
+  fillProfileScreen();
+  touchPresence();
+}
+
+function renderTopProfile() {
+  const p = state.me || {};
+  const name = getDisplayName(p);
+  const username = getUsername(p);
+
+  el.profileName.textContent = name;
+  el.profileUsername.textContent = username;
+  el.profileAvatar.textContent = (name || "م")[0] || "👤";
+
+  el.profilePageName.textContent = name;
+  el.profilePageUsername.textContent = username;
+  el.profilePageAvatar.textContent = (name || "م")[0] || "👤";
+
+  fillProfileScreen();
+}
+
+function fillProfileScreen() {
+  const p = state.me || {};
+  el.infoName.textContent = safeText(p.name);
+  el.infoAge.textContent = safeText(p.age);
+  el.infoNationality.textContent = safeText(p.nationality);
+  el.infoGender.textContent = safeText(p.gender);
+  el.infoBio.textContent = safeText(p.bio);
+
+  el.editName.value = p.name || "";
+  el.editAge.value = p.age || "";
+  el.editNationality.value = p.nationality || "";
+  el.editGender.value = p.gender || "";
+  el.editBio.value = p.bio || "";
 }
 
 function bindEvents() {
-  el.loginBtn.addEventListener("click", handleLogin);
-  el.registerBtn.addEventListener("click", handleRegister);
-
   el.openRightPanelBtn.addEventListener("click", () => {
     const wasOpen = el.rightPanel.classList.contains("open");
     closePanels();
@@ -262,52 +322,62 @@ function bindEvents() {
   el.closeRightPanelBtn.addEventListener("click", () => el.rightPanel.classList.remove("open"));
   el.closeLeftPanelBtn.addEventListener("click", () => el.leftPanel.classList.remove("open"));
 
-  el.logoutBtn.addEventListener("click", handleLogout);
+  el.publicMessageForm.addEventListener("submit", sendPublicMessage);
+  el.privateMessageForm.addEventListener("submit", sendPrivateMessage);
+
+  el.globalSearchInput.addEventListener("input", () => {
+    renderSearchResults();
+    renderOnlineUsers();
+    renderFeaturedUsers();
+  });
+
+  el.privateSearchInput.addEventListener("input", renderPrivateChats);
+
+  el.editProfileBtn.addEventListener("click", () => {
+    el.editProfilePanel.classList.toggle("hidden");
+  });
+
+  el.saveProfileBtn.addEventListener("click", () => {
+    saveLocalProfile({
+      name: el.editName.value.trim(),
+      age: el.editAge.value.trim(),
+      nationality: el.editNationality.value.trim(),
+      gender: el.editGender.value.trim(),
+      bio: el.editBio.value.trim(),
+    });
+    alert("تم حفظ الملف الشخصي ✅");
+  });
+
+  el.messageFromProfileBtn.addEventListener("click", () => {
+    if (state.activePrivatePartner) openPrivateChatWith(state.activePrivatePartner);
+  });
+
+  el.backToMainBtn.addEventListener("click", () => showScreen("main"));
+  el.backFromPrivateChatBtn.addEventListener("click", () => showScreen("main"));
 
   el.visitedProfileBtn.addEventListener("click", () => {
-    alert("من زار ملفك هيتربط بشكل كامل لاحقًا.");
+    alert("من زار ملفك سيتم عرضه هنا بعد التطبيق الكامل.");
   });
 
   el.settingsBtn.addEventListener("click", () => {
-    alert("الإعدادات هتتضاف في مرحلة لاحقة.");
+    alert("الإعدادات سيتم استكمالها لاحقًا.");
   });
 
-  el.globalSearchInput.addEventListener("input", handleGlobalSearch);
-  el.privateSearchInput.addEventListener("input", handlePrivateSearch);
-
-  el.publicMessageForm.addEventListener("submit", handlePublicMessageSend);
-  el.privateMessageForm.addEventListener("submit", handlePrivateMessageSend);
-
-  el.backToMainBtn.addEventListener("click", () => {
-    showScreen("main");
-    closePanels();
-  });
-
-  el.editProfileBtn.addEventListener("click", toggleEditProfile);
-  el.saveProfileBtn.addEventListener("click", saveProfileChanges);
-
-  el.messageFromProfileBtn.addEventListener("click", () => {
-    if (state.activePrivatePartner) {
-      openPrivateChatWith(state.activePrivatePartner);
-    }
-  });
-
-  el.backFromPrivateChatBtn.addEventListener("click", () => {
-    showScreen("main");
-    closePanels();
+  el.logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem(`${APP_KEY}_profile`);
+    localStorage.removeItem(`${APP_KEY}_uid`);
+    location.reload();
   });
 
   document.addEventListener("click", (e) => {
-    const insideSearch =
-      globalSearchResultsBox &&
-      (globalSearchResultsBox.contains(e.target) || el.globalSearchInput.contains(e.target));
-    if (!insideSearch) hideGlobalSearchResults();
+    const inside =
+      searchResultsBox &&
+      (searchResultsBox.contains(e.target) || el.globalSearchInput.contains(e.target));
+    if (!inside) hideSearchResults();
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      touchPresence();
-    }
+    if (document.visibilityState === "visible") touchPresence();
   });
 
   ["click", "scroll", "keydown", "touchstart", "mousemove"].forEach((evt) => {
@@ -316,313 +386,74 @@ function bindEvents() {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      hideGlobalSearchResults();
+      hideSearchResults();
       closePanels();
     }
   });
 }
 
-function bootstrap() {
-  updateSystemStatusUI();
-
-  onAuthStateChanged(auth, async (user) => {
-    state.user = user || null;
-
-    if (!user) {
-      teardownUserListeners();
-      stopHeartbeat();
-      resetAppState();
-      showScreen("auth");
-      setAuthMessage("", "info");
-      updateSystemStatusUI();
-      return;
-    }
-
-    // مهم جدًا: ندخل الواجهة فورًا، وبعدها نحمّل باقي البيانات.
-    showScreen("main");
-    updateSystemStatusUI();
-
-    try {
-      await ensureProfileForUser(user);
-    } catch (err) {
-      console.warn("ensureProfileForUser failed:", err);
-    }
-
-    updateTopProfileUI();
-    startHeartbeat();
-
-    try {
-      listenProfiles();
-      listenPublicMessages();
-      listenOnlineUsers();
-      listenPrivateChats();
-      listenVisits();
-      await loadUnreadState();
-      await touchPresence();
-    } catch (err) {
-      console.warn("Listener init failed:", err);
-    }
-  });
+function closePanels() {
+  el.rightPanel.classList.remove("open");
+  el.leftPanel.classList.remove("open");
 }
 
-function resetAppState() {
-  state.profile = null;
-  state.profilesCache = [];
-  state.publicMessages = [];
-  state.onlineUsers = [];
-  state.featuredUsers = [];
-  state.recentPrivateChats = [];
-  state.activePrivateChatId = null;
-  state.activePrivatePartner = null;
-  state.privateMessages = [];
-  state.unreadMap = loadJSON("kareem3_unread_map", {});
-  state.seenChatMap = loadJSON("kareem3_seen_chat_map", {});
-
-  el.publicMessages.innerHTML = "";
-  el.privateMessages.innerHTML = "";
-  el.onlineUsersList.innerHTML = "";
-  el.featuredUsersList.innerHTML = "";
-  el.privateChatsList.innerHTML = "";
-  setDot(el.privateMessagesBadge, false, 0);
-  setDot(el.visitedBadge, false, 0);
-  hideGlobalSearchResults();
+function showScreen(name) {
+  el.mainScreen.classList.toggle("hidden", name !== "main");
+  el.profileScreen.classList.toggle("hidden", name !== "profile");
+  el.privateChatScreen.classList.toggle("hidden", name !== "privateChat");
 }
 
-function teardownUserListeners() {
-  if (state.publicUnsub) state.publicUnsub();
-  if (state.onlineUnsub) state.onlineUnsub();
-  if (state.profilesUnsub) state.profilesUnsub();
-  if (state.privateChatsUnsub) state.privateChatsUnsub();
-  if (state.privateMessagesUnsub) state.privateMessagesUnsub();
-  if (state.visitsUnsub) state.visitsUnsub();
+function ensureSearchResultsBox() {
+  const wrap = document.querySelector(".search-wrap");
+  if (!wrap) return;
 
-  state.publicUnsub = null;
-  state.onlineUnsub = null;
-  state.profilesUnsub = null;
-  state.privateChatsUnsub = null;
-  state.privateMessagesUnsub = null;
-  state.visitsUnsub = null;
+  const box = document.createElement("div");
+  box.id = "globalSearchResults";
+  box.className = "search-results hidden card";
+  wrap.appendChild(box);
+  searchResultsBox = box;
 }
 
-async function handleLogin() {
-  try {
-    setAuthMessage("جاري تسجيل الدخول...");
-    const email = el.authEmail.value.trim();
-    const password = el.authPassword.value;
-
-    await signInWithEmailAndPassword(auth, email, password);
-    setAuthMessage("تم تسجيل الدخول بنجاح ✅");
-  } catch (err) {
-    console.error(err);
-    setAuthMessage("كلمة المرور أو الإيميل غير صحيح.", "error");
-  }
+function hideSearchResults() {
+  if (!searchResultsBox) return;
+  searchResultsBox.classList.add("hidden");
+  searchResultsBox.innerHTML = "";
 }
 
-async function handleRegister() {
-  try {
-    setAuthMessage("جاري إنشاء الحساب...");
-    const email = el.authEmail.value.trim();
-    const password = el.authPassword.value;
-
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const user = cred.user;
-
-    const baseName = email.includes("@") ? email.split("@")[0] : "مستخدم";
-    const profileData = {
-      uid: user.uid,
-      email,
-      name: baseName,
-      username: baseName,
-      age: "",
-      nationality: "",
-      gender: "",
-      bio: "",
-      createdAt: now(),
-      updatedAt: now(),
-    };
-
-    try {
-      await setDoc(doc(db, "profiles", user.uid), profileData, { merge: true });
-    } catch (err) {
-      console.warn("Profile save failed after register:", err);
-    }
-
-    // نسيب الدخول يكمل طبيعي عبر onAuthStateChanged
-    setAuthMessage("تم تسجيل حسابك بنجاح ✅");
-  } catch (err) {
-    console.error(err);
-    setAuthMessage("لم يتم إنشاء الحساب. تأكد من الإيميل أو كلمة المرور.", "error");
-  }
-}
-
-async function handleLogout() {
-  try {
-    if (state.user) {
-      await removeOnlineMarker(state.user.uid);
-    }
-    stopHeartbeat();
-    await signOut(auth);
-  } catch (err) {
-    console.error(err);
-    alert("حدث خطأ أثناء تسجيل الخروج.");
-  }
-}
-
-async function ensureProfileForUser(user) {
-  const ref = doc(db, "profiles", user.uid);
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) {
-    const baseName = user.email.includes("@") ? user.email.split("@")[0] : "مستخدم";
-    const profileData = {
-      uid: user.uid,
-      email: user.email,
-      name: baseName,
-      username: baseName,
-      age: "",
-      nationality: "",
-      gender: "",
-      bio: "",
-      createdAt: now(),
-      updatedAt: now(),
-    };
-    await setDoc(ref, profileData, { merge: true });
-    state.profile = profileData;
-  } else {
-    state.profile = snap.data();
-  }
-
-  updateTopProfileUI();
-  fillProfileScreen();
-  await markOnline();
-}
-
-function updateTopProfileUI() {
-  const profile = state.profile || {};
-  const displayName = getProfileDisplayName(profile, state.user?.email || "");
-  const username = getProfileUsername(profile, state.user?.email || "");
-
-  el.profileName.textContent = displayName;
-  el.profileUsername.textContent = username;
-  el.profilePageName.textContent = displayName;
-  el.profilePageUsername.textContent = username;
-  el.profileAvatar.textContent = (displayName || "م").trim()[0] || "👤";
-  el.profilePageAvatar.textContent = (displayName || "م").trim()[0] || "👤";
-
-  updateSystemStatusUI();
-}
-
-function fillProfileScreen() {
-  const p = state.profile || {};
-  el.infoName.textContent = safeText(p.name || getProfileDisplayName(p, state.user?.email || ""));
-  el.infoAge.textContent = safeText(p.age);
-  el.infoNationality.textContent = safeText(p.nationality);
-  el.infoGender.textContent = safeText(p.gender);
-  el.infoBio.textContent = safeText(p.bio);
-
-  el.editName.value = p.name || "";
-  el.editAge.value = p.age || "";
-  el.editNationality.value = p.nationality || "";
-  el.editGender.value = p.gender || "";
-  el.editBio.value = p.bio || "";
-}
-
-function toggleEditProfile() {
-  el.editProfilePanel.classList.toggle("hidden");
-}
-
-async function saveProfileChanges() {
-  try {
-    if (!state.user) return;
-
-    const payload = {
-      name: el.editName.value.trim(),
-      age: el.editAge.value.trim(),
-      nationality: el.editNationality.value.trim(),
-      gender: el.editGender.value.trim(),
-      bio: el.editBio.value.trim(),
-      updatedAt: now(),
-    };
-
-    await setDoc(doc(db, "profiles", state.user.uid), payload, { merge: true });
-    state.profile = { ...(state.profile || {}), ...payload };
-
-    updateTopProfileUI();
-    fillProfileScreen();
-    alert("تم حفظ التعديلات ✅");
-  } catch (err) {
-    console.error(err);
-    alert("تعذر حفظ التعديلات.");
-  }
-}
-
-async function markOnline() {
-  if (!state.user) return;
-
-  const profile = state.profile || {};
-  const displayName = getProfileDisplayName(profile, state.user.email || "");
-  const username = getProfileUsername(profile, state.user.email || "");
-
-  await setDoc(
-    doc(db, "users_online", state.user.uid),
-    {
-      uid: state.user.uid,
-      email: state.user.email || "",
-      name: displayName,
-      username,
-      joinedAt: now(),
-      lastActive: now(),
-      active: true,
-    },
-    { merge: true }
-  );
-}
-
-async function touchPresence() {
-  if (!state.user) return;
-
-  const profile = state.profile || {};
-  const displayName = getProfileDisplayName(profile, state.user.email || "");
-  const username = getProfileUsername(profile, state.user.email || "");
-
-  try {
-    await setDoc(
-      doc(db, "users_online", state.user.uid),
-      {
-        uid: state.user.uid,
-        email: state.user.email || "",
-        name: displayName,
-        username,
-        joinedAt: now(),
-        lastActive: now(),
-        active: true,
-      },
-      { merge: true }
-    );
-  } catch (err) {
-    console.warn("touchPresence failed:", err);
-  }
-}
-
-async function removeOnlineMarker(userId) {
-  try {
-    await deleteDoc(doc(db, "users_online", userId));
-  } catch (err) {
-    console.warn("removeOnlineMarker failed:", err);
-  }
-}
-
-function startHeartbeat() {
-  stopHeartbeat();
+function startPresence() {
+  stopPresence();
   state.heartbeatTimer = setInterval(() => {
-    touchPresence().catch(console.error);
+    touchPresence();
   }, HEARTBEAT_INTERVAL_MS);
 }
 
-function stopHeartbeat() {
-  if (state.heartbeatTimer) {
-    clearInterval(state.heartbeatTimer);
-    state.heartbeatTimer = null;
+function stopPresence() {
+  if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
+  state.heartbeatTimer = null;
+}
+
+async function touchPresence() {
+  if (!state.me) return;
+
+  const payload = {
+    uid: state.me.uid,
+    name: getDisplayName(state.me),
+    username: getUsername(state.me),
+    age: state.me.age || "",
+    nationality: state.me.nationality || "",
+    gender: state.me.gender || "",
+    bio: state.me.bio || "",
+    joinedAt: state.me.joinedAt || now(),
+    lastActive: now(),
+  };
+
+  state.me.joinedAt = payload.joinedAt;
+
+  try {
+    await setDoc(doc(db, "users_online", state.me.uid), payload, { merge: true });
+    await setDoc(doc(db, "profiles", state.me.uid), payload, { merge: true });
+  } catch (err) {
+    console.warn("touchPresence failed", err);
   }
 }
 
@@ -640,8 +471,9 @@ function listenPublicMessages() {
 
   const q = query(publicMessagesRef, orderBy("createdAt", "desc"), limit(MAX_PUBLIC_MESSAGES));
   state.publicUnsub = onSnapshot(q, (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
-    state.publicMessages = items;
+    state.publicMessages = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .reverse();
     renderPublicMessages();
   });
 }
@@ -649,15 +481,13 @@ function listenPublicMessages() {
 function listenOnlineUsers() {
   if (state.onlineUnsub) state.onlineUnsub();
 
-  const q = query(usersOnlineRef, orderBy("joinedAt", "desc"), limit(100));
+  const q = query(usersOnlineRef, orderBy("lastActive", "desc"), limit(100));
   state.onlineUnsub = onSnapshot(q, (snap) => {
     const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    state.onlineUsers = all;
+    const active = all.filter((u) => now() - Number(u.lastActive || 0) <= FEATURED_ACTIVITY_WINDOW_MS);
 
-    state.featuredUsers = all.filter((u) => {
-      const last = Number(u.lastActive || u.joinedAt || 0);
-      return now() - last <= FEATURED_ACTIVITY_WINDOW_MS;
-    });
+    state.onlineUsers = active;
+    state.featuredUsers = active.slice(0, 8);
 
     renderOnlineUsers();
     renderFeaturedUsers();
@@ -666,17 +496,15 @@ function listenOnlineUsers() {
 
 function listenPrivateChats() {
   if (state.privateChatsUnsub) state.privateChatsUnsub();
-  if (!state.user) return;
 
   const q = query(
     collection(db, "private_chats"),
-    where("members", "array-contains", state.user.uid)
+    where("members", "array-contains", state.me.uid)
   );
 
   state.privateChatsUnsub = onSnapshot(q, (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    items.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
-    state.recentPrivateChats = items;
+    state.privateChats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    state.privateChats.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
     renderPrivateChats();
     updatePrivateBadge();
   });
@@ -684,11 +512,10 @@ function listenPrivateChats() {
 
 function listenVisits() {
   if (state.visitsUnsub) state.visitsUnsub();
-  if (!state.user) return;
 
   const q = query(
     collection(db, "profile_visits"),
-    where("ownerUid", "==", state.user.uid)
+    where("ownerUid", "==", state.me.uid)
   );
 
   state.visitsUnsub = onSnapshot(q, (snap) => {
@@ -701,233 +528,84 @@ function listenVisits() {
   });
 }
 
-async function handlePublicMessageSend(e) {
+async function sendPublicMessage(e) {
   e.preventDefault();
-  if (!state.user) return;
-
   const text = el.publicMessageInput.value.trim();
   if (!text) return;
 
-  const profile = state.profile || {};
-  const msg = {
-    uid: state.user.uid,
-    email: state.user.email || "",
-    name: getProfileDisplayName(profile, state.user.email || ""),
-    username: getProfileUsername(profile, state.user.email || ""),
+  const payload = {
+    uid: state.me.uid,
+    name: getDisplayName(state.me),
+    username: getUsername(state.me),
     text,
     createdAt: now(),
   };
 
   try {
-    await addDoc(publicMessagesRef, msg);
+    await addDoc(publicMessagesRef, payload);
     el.publicMessageInput.value = "";
-    await touchPresence();
+    touchPresence();
   } catch (err) {
     console.error(err);
     alert("تعذر إرسال الرسالة.");
   }
 }
 
-async function handlePrivateMessageSend(e) {
-  e.preventDefault();
-  if (!state.user || !state.activePrivateChatId || !state.activePrivatePartner) return;
-
-  const text = el.privateMessageInput.value.trim();
-  if (!text) return;
-
-  const chatId = state.activePrivateChatId;
-  const partner = state.activePrivatePartner;
-  const profile = state.profile || {};
-
-  const payload = {
-    chatId,
-    senderId: state.user.uid,
-    receiverId: partner.uid,
-    senderName: getProfileDisplayName(profile, state.user.email || ""),
-    receiverName: getProfileDisplayName(partner, partner.email || ""),
-    senderUsername: getProfileUsername(profile, state.user.email || ""),
-    receiverUsername: getProfileUsername(partner, partner.email || ""),
-    text,
-    createdAt: now(),
-    type: "text",
-  };
-
-  try {
-    await addDoc(collection(db, "private_chats", chatId, "messages"), payload);
-
-    await setDoc(
-      doc(db, "private_chats", chatId),
-      {
-        chatId,
-        members: [state.user.uid, partner.uid],
-        updatedAt: now(),
-        lastMessage: text,
-        lastMessageBy: state.user.uid,
-        participants: {
-          [state.user.uid]: {
-            uid: state.user.uid,
-            name: payload.senderName,
-            username: payload.senderUsername,
-            email: state.user.email || "",
-          },
-          [partner.uid]: {
-            uid: partner.uid,
-            name: payload.receiverName,
-            username: payload.receiverUsername,
-            email: partner.email || "",
-          },
-        },
-      },
-      { merge: true }
-    );
-
-    el.privateMessageInput.value = "";
-    await touchPresence();
-  } catch (err) {
-    console.error(err);
-    alert("تعذر إرسال الرسالة الخاصة.");
-  }
-}
-
-function openPrivateChatWith(profileUser) {
-  const me = state.user;
-  if (!me || !profileUser) return;
-
-  const partner = {
-    uid: profileUser.uid,
-    email: profileUser.email || "",
-    name: profileUser.name || getProfileDisplayName(profileUser, profileUser.email || ""),
-    username: profileUser.username || getProfileUsername(profileUser, profileUser.email || ""),
-  };
-
-  const chatId = chatIdFor(me.uid, partner.uid);
-  state.activePrivateChatId = chatId;
-  state.activePrivatePartner = partner;
-
-  el.privateChatTitle.textContent = partner.name;
-  el.privateChatSubtitle.textContent = partner.username;
-
-  loadPrivateMessages(chatId);
-
-  state.seenChatMap[chatId] = now();
-  state.unreadMap[chatId] = 0;
-  saveJSON("kareem3_seen_chat_map", state.seenChatMap);
-  saveJSON("kareem3_unread_map", state.unreadMap);
-  updatePrivateBadge();
-
-  showScreen("privateChat");
-}
-
-function loadPrivateMessages(chatId) {
-  if (state.privateMessagesUnsub) {
-    state.privateMessagesUnsub();
-    state.privateMessagesUnsub = null;
-  }
-
-  const q = query(
-    collection(db, "private_chats", chatId, "messages"),
-    orderBy("createdAt", "asc"),
-    limit(MAX_PUBLIC_MESSAGES)
-  );
-
-  state.privateMessagesUnsub = onSnapshot(q, (snap) => {
-    state.privateMessages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderPrivateMessages();
-    markCurrentChatSeen(chatId);
-  });
-}
-
-function markCurrentChatSeen(chatId) {
-  state.seenChatMap[chatId] = now();
-  state.unreadMap[chatId] = 0;
-  saveJSON("kareem3_seen_chat_map", state.seenChatMap);
-  saveJSON("kareem3_unread_map", state.unreadMap);
-  updatePrivateBadge();
-  renderPrivateChats();
-}
-
-function updatePrivateBadge() {
-  const total = Object.values(state.unreadMap || {}).reduce((sum, n) => sum + Number(n || 0), 0);
-  setDot(el.privateMessagesBadge, total > 0, total);
-}
-
 function renderPublicMessages() {
   el.publicMessages.innerHTML = "";
 
-  const fragment = document.createDocumentFragment();
+  const frag = document.createDocumentFragment();
   for (const m of state.publicMessages) {
     const row = document.createElement("article");
     row.className = "message-item";
-
-    const mine = m.uid && state.user && m.uid === state.user.uid;
-    row.classList.toggle("mine", mine);
+    row.classList.toggle("mine", m.uid === state.me.uid);
 
     row.innerHTML = `
       <div class="message-bubble">
         <div class="message-meta">
-          <strong>${escapeHTML(m.name || m.username || "مستخدم")}</strong>
-          <small>${escapeHTML(timeLabel(m.createdAt))}</small>
+          <strong>${esc(m.name || m.username || "مستخدم")}</strong>
+          <small>${esc(timeLabel(m.createdAt))}</small>
         </div>
-        <p>${escapeHTML(m.text || "")}</p>
+        <p>${esc(m.text || "")}</p>
       </div>
     `;
-
-    fragment.appendChild(row);
+    frag.appendChild(row);
   }
 
-  el.publicMessages.appendChild(fragment);
+  el.publicMessages.appendChild(frag);
   el.publicMessages.scrollTop = el.publicMessages.scrollHeight;
-}
-
-function renderPrivateMessages() {
-  el.privateMessages.innerHTML = "";
-
-  const fragment = document.createDocumentFragment();
-  for (const m of state.privateMessages) {
-    const row = document.createElement("article");
-    row.className = "message-item";
-
-    const mine = m.senderId && state.user && m.senderId === state.user.uid;
-    row.classList.toggle("mine", mine);
-
-    row.innerHTML = `
-      <div class="message-bubble">
-        <div class="message-meta">
-          <strong>${escapeHTML(m.senderName || "مستخدم")}</strong>
-          <small>${escapeHTML(timeLabel(m.createdAt))}</small>
-        </div>
-        <p>${escapeHTML(m.text || "")}</p>
-      </div>
-    `;
-
-    fragment.appendChild(row);
-  }
-
-  el.privateMessages.appendChild(fragment);
-  el.privateMessages.scrollTop = el.privateMessages.scrollHeight;
 }
 
 function renderOnlineUsers() {
   el.onlineUsersList.innerHTML = "";
-  const list = filterVisibleUsers(state.onlineUsers);
+  const term = el.globalSearchInput.value.trim().toLowerCase();
+
+  const list = state.onlineUsers.filter((u) => {
+    const txt = `${u.name || ""} ${u.username || ""} ${u.email || ""}`.toLowerCase();
+    return !term || txt.includes(term);
+  });
 
   if (!list.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "لا يوجد مستخدمون الآن.";
+    empty.textContent = "لا يوجد متصلون الآن.";
     el.onlineUsersList.appendChild(empty);
     return;
   }
 
-  for (const user of list) {
-    const item = buildUserChip(user, (u) => openProfileView(u, "online"));
-    el.onlineUsersList.appendChild(item);
+  for (const u of list) {
+    el.onlineUsersList.appendChild(buildUserChip(u, () => openProfileView(u, "online")));
   }
 }
 
 function renderFeaturedUsers() {
   el.featuredUsersList.innerHTML = "";
-  const list = filterVisibleUsers(state.featuredUsers);
+  const term = el.globalSearchInput.value.trim().toLowerCase();
+
+  const list = state.featuredUsers.filter((u) => {
+    const txt = `${u.name || ""} ${u.username || ""} ${u.email || ""}`.toLowerCase();
+    return !term || txt.includes(term);
+  });
 
   if (!list.length) {
     const empty = document.createElement("div");
@@ -937,107 +615,34 @@ function renderFeaturedUsers() {
     return;
   }
 
-  for (const user of list) {
-    const item = buildUserChip(user, (u) => openProfileView(u, "featured"));
-    el.featuredUsersList.appendChild(item);
-  }
-}
-
-function renderPrivateChats() {
-  el.privateChatsList.innerHTML = "";
-
-  const filtered = filterPrivateChats(state.recentPrivateChats, el.privateSearchInput.value.trim());
-  if (!filtered.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.textContent = "لا توجد محادثات بعد.";
-    el.privateChatsList.appendChild(empty);
-    return;
-  }
-
-  for (const chat of filtered) {
-    const otherUid = (chat.members || []).find((id) => id !== state.user?.uid);
-    const otherProfile = state.profilesCache.find((p) => p.uid === otherUid) || chat.participants?.[otherUid] || {};
-    const unread = Number(state.unreadMap[chat.id] || 0);
-
-    const btn = document.createElement("button");
-    btn.className = "menu-item chat-item";
-    btn.innerHTML = `
-      <span class="menu-icon">💬</span>
-      <span class="chat-text">
-        <strong>${escapeHTML(otherProfile.name || otherProfile.displayName || "مستخدم")}</strong>
-        <small>${escapeHTML(chat.lastMessage || "محادثة خاصة")}</small>
-      </span>
-      ${unread > 0 ? `<span class="badge">${unread}</span>` : ""}
-    `;
-
-    btn.addEventListener("click", () => {
-      openPrivateChatWith({
-        uid: otherUid,
-        email: otherProfile.email || "",
-        name: otherProfile.name || otherProfile.displayName || "مستخدم",
-        username: otherProfile.username || "",
-        age: otherProfile.age || "",
-        nationality: otherProfile.nationality || "",
-        gender: otherProfile.gender || "",
-        bio: otherProfile.bio || "",
-      });
-    });
-
-    el.privateChatsList.appendChild(btn);
+  for (const u of list) {
+    el.featuredUsersList.appendChild(buildUserChip(u, () => openProfileView(u, "featured")));
   }
 }
 
 function buildUserChip(user, onClick) {
   const btn = document.createElement("button");
   btn.className = "user-chip";
-  const firstLetter = (user.name || user.username || "م")[0] || "م";
+  const first = (user.name || user.username || "م")[0] || "م";
 
   btn.innerHTML = `
-    <span class="user-avatar">${escapeHTML(firstLetter)}</span>
+    <span class="user-avatar">${esc(first)}</span>
     <span class="user-chip-text">
-      <strong>${escapeHTML(user.name || user.displayName || "مستخدم")}</strong>
-      <small>${escapeHTML(user.username || "")}</small>
+      <strong>${esc(user.name || user.username || "مستخدم")}</strong>
+      <small>${esc(user.username || "")}</small>
     </span>
   `;
 
-  btn.addEventListener("click", () => onClick(user));
+  btn.addEventListener("click", onClick);
   return btn;
 }
 
-function filterVisibleUsers(users) {
-  const term = el.globalSearchInput.value.trim().toLowerCase();
-  return (users || []).filter((u) => {
-    const text = `${u.name || ""} ${u.username || ""} ${u.email || ""}`.toLowerCase();
-    return !term || text.includes(term);
-  });
-}
-
-function filterPrivateChats(chats, term) {
-  const t = (term || "").toLowerCase();
-  if (!t) return chats || [];
-  return (chats || []).filter((chat) => {
-    const text = `${chat.lastMessage || ""} ${JSON.stringify(chat.participants || {})}`.toLowerCase();
-    return text.includes(t);
-  });
-}
-
-function handleGlobalSearch() {
-  renderSearchResults();
-  renderOnlineUsers();
-  renderFeaturedUsers();
-}
-
-function handlePrivateSearch() {
-  renderPrivateChats();
-}
-
 function renderSearchResults() {
-  if (!globalSearchResultsBox) return;
+  if (!searchResultsBox) return;
 
   const term = el.globalSearchInput.value.trim().toLowerCase();
   if (!term) {
-    hideGlobalSearchResults();
+    hideSearchResults();
     return;
   }
 
@@ -1048,75 +653,52 @@ function renderSearchResults() {
     })
     .slice(0, 6);
 
-  globalSearchResultsBox.innerHTML = "";
+  searchResultsBox.innerHTML = "";
 
   if (!matches.length) {
-    globalSearchResultsBox.innerHTML = `<div class="empty-state">لا توجد نتائج.</div>`;
-    globalSearchResultsBox.classList.remove("hidden");
+    searchResultsBox.innerHTML = `<div class="empty-state">لا توجد نتائج.</div>`;
+    searchResultsBox.classList.remove("hidden");
     return;
   }
 
-  for (const m of matches) {
+  for (const p of matches) {
     const btn = document.createElement("button");
     btn.className = "menu-item search-result";
     btn.innerHTML = `
       <span class="menu-icon">👤</span>
       <span class="chat-text">
-        <strong>${escapeHTML(getProfileDisplayName(m, m.email || ""))}</strong>
-        <small>${escapeHTML(getProfileUsername(m, m.email || ""))}</small>
+        <strong>${esc(getDisplayName(p))}</strong>
+        <small>${esc(getUsername(p))}</small>
       </span>
     `;
 
     btn.addEventListener("click", () => {
-      hideGlobalSearchResults();
-      openProfileView(
-        {
-          uid: m.uid,
-          email: m.email || "",
-          name: m.name || getProfileDisplayName(m, m.email || ""),
-          username: m.username || getProfileUsername(m, m.email || ""),
-          age: m.age || "",
-          nationality: m.nationality || "",
-          gender: m.gender || "",
-          bio: m.bio || "",
-        },
-        "search"
-      );
+      hideSearchResults();
+      openProfileView(p, "search");
     });
 
-    globalSearchResultsBox.appendChild(btn);
+    searchResultsBox.appendChild(btn);
   }
 
-  globalSearchResultsBox.classList.remove("hidden");
+  searchResultsBox.classList.remove("hidden");
 }
 
-function ensureGlobalSearchResultsBox() {
-  const wrap = document.querySelector(".search-wrap");
-  if (!wrap) return;
-
-  const box = document.createElement("div");
-  box.id = "globalSearchResults";
-  box.className = "search-results hidden card";
-  wrap.appendChild(box);
-  globalSearchResultsBox = box;
-}
-
-function hideGlobalSearchResults() {
-  if (!globalSearchResultsBox) return;
-  globalSearchResultsBox.classList.add("hidden");
-  globalSearchResultsBox.innerHTML = "";
+function hideSearchResults() {
+  if (!searchResultsBox) return;
+  searchResultsBox.classList.add("hidden");
+  searchResultsBox.innerHTML = "";
 }
 
 async function openProfileView(profileUser, source = "list") {
   const p = {
     uid: profileUser.uid,
-    email: profileUser.email || "",
-    name: profileUser.name || profileUser.displayName || getProfileDisplayName(profileUser, profileUser.email || ""),
-    username: profileUser.username || getProfileUsername(profileUser, profileUser.email || ""),
+    name: profileUser.name || getDisplayName(profileUser),
+    username: profileUser.username || getUsername(profileUser),
     age: profileUser.age || "",
     nationality: profileUser.nationality || "",
     gender: profileUser.gender || "",
     bio: profileUser.bio || "",
+    email: profileUser.email || "",
   };
 
   state.activePrivatePartner = p;
@@ -1124,6 +706,7 @@ async function openProfileView(profileUser, source = "list") {
   el.profilePageAvatar.textContent = (p.name || "م")[0] || "👤";
   el.profilePageName.textContent = p.name;
   el.profilePageUsername.textContent = p.username;
+
   el.infoName.textContent = safeText(p.name);
   el.infoAge.textContent = safeText(p.age);
   el.infoNationality.textContent = safeText(p.nationality);
@@ -1141,30 +724,223 @@ async function openProfileView(profileUser, source = "list") {
 }
 
 async function registerProfileVisitIfNeeded(viewedUid, source) {
-  if (!state.user || !viewedUid) return;
-  if (viewedUid === state.user.uid) return;
+  if (!state.me || !viewedUid) return;
+  if (viewedUid === state.me.uid) return;
 
   try {
     await addDoc(collection(db, "profile_visits"), {
       ownerUid: viewedUid,
-      visitorUid: state.user.uid,
-      visitorName: getProfileDisplayName(state.profile || {}, state.user.email || ""),
-      visitorUsername: getProfileUsername(state.profile || {}, state.user.email || ""),
+      visitorUid: state.me.uid,
+      visitorName: getDisplayName(state.me),
+      visitorUsername: getUsername(state.me),
       createdAt: now(),
       source,
     });
   } catch (err) {
-    console.warn("profile visit not saved", err);
+    console.warn("registerProfileVisitIfNeeded failed", err);
   }
 }
 
-async function loadUnreadState() {
-  state.unreadMap = loadJSON("kareem3_unread_map", {});
-  state.seenChatMap = loadJSON("kareem3_seen_chat_map", {});
+function openPrivateChatWith(user) {
+  if (!user || !user.uid) return;
+
+  const partner = {
+    uid: user.uid,
+    name: user.name || getDisplayName(user),
+    username: user.username || getUsername(user),
+    email: user.email || "",
+    age: user.age || "",
+    nationality: user.nationality || "",
+    gender: user.gender || "",
+    bio: user.bio || "",
+  };
+
+  const chatId = chatIdFor(state.me.uid, partner.uid);
+  state.activePrivateChatId = chatId;
+  state.activePrivatePartner = partner;
+
+  el.privateChatTitle.textContent = partner.name;
+  el.privateChatSubtitle.textContent = partner.username;
+
+  listenPrivateMessages(chatId);
+  markChatSeen(chatId);
+
+  showScreen("privateChat");
+}
+
+function listenPrivateMessages(chatId) {
+  if (state.privateMessagesUnsub) {
+    state.privateMessagesUnsub();
+    state.privateMessagesUnsub = null;
+  }
+
+  const q = query(
+    collection(db, "private_chats", chatId, "messages"),
+    orderBy("createdAt", "asc"),
+    limit(MAX_PUBLIC_MESSAGES)
+  );
+
+  state.privateMessagesUnsub = onSnapshot(q, (snap) => {
+    state.privateMessages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderPrivateMessages();
+    markChatSeen(chatId);
+  });
+}
+
+function renderPrivateMessages() {
+  el.privateMessages.innerHTML = "";
+
+  const frag = document.createDocumentFragment();
+  for (const m of state.privateMessages) {
+    const row = document.createElement("article");
+    row.className = "message-item";
+    row.classList.toggle("mine", m.senderId === state.me.uid);
+
+    row.innerHTML = `
+      <div class="message-bubble">
+        <div class="message-meta">
+          <strong>${esc(m.senderName || "مستخدم")}</strong>
+          <small>${esc(timeLabel(m.createdAt))}</small>
+        </div>
+        <p>${esc(m.text || "")}</p>
+      </div>
+    `;
+    frag.appendChild(row);
+  }
+
+  el.privateMessages.appendChild(frag);
+  el.privateMessages.scrollTop = el.privateMessages.scrollHeight;
+}
+
+async function sendPrivateMessage(e) {
+  e.preventDefault();
+  if (!state.activePrivateChatId || !state.activePrivatePartner) return;
+
+  const text = el.privateMessageInput.value.trim();
+  if (!text) return;
+
+  const chatId = state.activePrivateChatId;
+  const partner = state.activePrivatePartner;
+  const me = state.me;
+
+  const payload = {
+    chatId,
+    senderId: me.uid,
+    receiverId: partner.uid,
+    senderName: getDisplayName(me),
+    senderUsername: getUsername(me),
+    receiverName: partner.name,
+    receiverUsername: partner.username,
+    text,
+    createdAt: now(),
+    type: "text",
+  };
+
+  try {
+    await addDoc(collection(db, "private_chats", chatId, "messages"), payload);
+    await setDoc(
+      doc(db, "private_chats", chatId),
+      {
+        chatId,
+        members: [me.uid, partner.uid],
+        updatedAt: now(),
+        lastMessage: text,
+        lastMessageBy: me.uid,
+        participants: {
+          [me.uid]: {
+            uid: me.uid,
+            name: getDisplayName(me),
+            username: getUsername(me),
+          },
+          [partner.uid]: {
+            uid: partner.uid,
+            name: partner.name,
+            username: partner.username,
+          },
+        },
+      },
+      { merge: true }
+    );
+
+    el.privateMessageInput.value = "";
+    touchPresence();
+  } catch (err) {
+    console.error(err);
+    alert("تعذر إرسال الرسالة الخاصة.");
+  }
+}
+
+function markChatSeen(chatId) {
+  state.seenMap[chatId] = now();
+  state.unreadMap[chatId] = 0;
+  saveJSON("kareem3_seen_map", state.seenMap);
+  saveJSON("kareem3_unread_map", state.unreadMap);
   updatePrivateBadge();
+  renderPrivateChats();
 }
 
 function updatePrivateBadge() {
   const total = Object.values(state.unreadMap || {}).reduce((sum, n) => sum + Number(n || 0), 0);
   setDot(el.privateMessagesBadge, total > 0, total);
 }
+
+function renderPrivateChats() {
+  el.privateChatsList.innerHTML = "";
+
+  const term = el.privateSearchInput.value.trim().toLowerCase();
+  const list = state.privateChats.filter((chat) => {
+    const text = `${chat.lastMessage || ""} ${JSON.stringify(chat.participants || {})}`.toLowerCase();
+    return !term || text.includes(term);
+  });
+
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "لا توجد محادثات بعد.";
+    el.privateChatsList.appendChild(empty);
+    return;
+  }
+
+  for (const chat of list) {
+    const otherUid = (chat.members || []).find((id) => id !== state.me.uid);
+    const other =
+      state.profilesCache.find((p) => p.uid === otherUid) ||
+      chat.participants?.[otherUid] ||
+      {};
+
+    const unread = Number(state.unreadMap[chat.id] || 0);
+
+    const btn = document.createElement("button");
+    btn.className = "menu-item chat-item";
+    btn.innerHTML = `
+      <span class="menu-icon">💬</span>
+      <span class="chat-text">
+        <strong>${esc(other.name || other.username || "مستخدم")}</strong>
+        <small>${esc(chat.lastMessage || "محادثة خاصة")}</small>
+      </span>
+      ${unread > 0 ? `<span class="badge">${unread}</span>` : ""}
+    `;
+
+    btn.addEventListener("click", () => {
+      openPrivateChatWith({
+        uid: otherUid,
+        name: other.name || other.username || "مستخدم",
+        username: other.username || "",
+        email: other.email || "",
+        age: other.age || "",
+        nationality: other.nationality || "",
+        gender: other.gender || "",
+        bio: other.bio || "",
+      });
+    });
+
+    el.privateChatsList.appendChild(btn);
+  }
+}
+
+window.addEventListener("beforeunload", () => {
+  stopPresence();
+  try {
+    deleteDoc(doc(db, "users_online", state.me.uid));
+  } catch {}
+});
