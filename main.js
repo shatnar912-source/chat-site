@@ -3,24 +3,18 @@ import {
   db,
   publicMessagesRef,
   usersOnlineRef,
-  privateChatsRef,
-  profilesRef,
-  visitedProfilesRef,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   addDoc,
   setDoc,
-  updateDoc,
   deleteDoc,
   getDoc,
-  getDocs,
   query,
   where,
   orderBy,
   limit,
-  serverTimestamp,
   onSnapshot,
 } from "./firebase.js";
 
@@ -53,6 +47,7 @@ const state = {
   unreadMap: loadJSON("kareem3_unread_map", {}),
   seenChatMap: loadJSON("kareem3_seen_chat_map", {}),
   heartbeatTimer: null,
+
   publicUnsub: null,
   onlineUnsub: null,
   profilesUnsub: null,
@@ -157,10 +152,6 @@ function now() {
   return Date.now();
 }
 
-function uid() {
-  return state.user?.uid || null;
-}
-
 function isAdminUser() {
   return !!state.user && state.user.email === ADMIN_EMAIL;
 }
@@ -176,13 +167,6 @@ function showScreen(name) {
   el.mainScreen.classList.toggle("hidden", name !== "main");
   el.profileScreen.classList.toggle("hidden", name !== "profile");
   el.privateChatScreen.classList.toggle("hidden", name !== "privateChat");
-}
-
-function openOnlyPanel(panelName) {
-  const showRight = panelName === "right";
-  const showLeft = panelName === "left";
-  el.rightPanel.classList.toggle("open", showRight);
-  el.leftPanel.classList.toggle("open", showLeft);
 }
 
 function closePanels() {
@@ -264,15 +248,15 @@ function bindEvents() {
   el.registerBtn.addEventListener("click", handleRegister);
 
   el.openRightPanelBtn.addEventListener("click", () => {
-    const open = el.rightPanel.classList.contains("open");
+    const wasOpen = el.rightPanel.classList.contains("open");
     closePanels();
-    if (!open) el.rightPanel.classList.add("open");
+    if (!wasOpen) el.rightPanel.classList.add("open");
   });
 
   el.openLeftPanelBtn.addEventListener("click", () => {
-    const open = el.leftPanel.classList.contains("open");
+    const wasOpen = el.leftPanel.classList.contains("open");
     closePanels();
-    if (!open) el.leftPanel.classList.add("open");
+    if (!wasOpen) el.leftPanel.classList.add("open");
   });
 
   el.closeRightPanelBtn.addEventListener("click", () => el.rightPanel.classList.remove("open"));
@@ -281,11 +265,11 @@ function bindEvents() {
   el.logoutBtn.addEventListener("click", handleLogout);
 
   el.visitedProfileBtn.addEventListener("click", () => {
-    alert("من زار ملفك مؤقتًا سيتم ربطها لاحقًا بواجهة كاملة.");
+    alert("من زار ملفك هيتربط بشكل كامل لاحقًا.");
   });
 
   el.settingsBtn.addEventListener("click", () => {
-    alert("الإعدادات لسه هنبنيها في المرحلة الجاية.");
+    alert("الإعدادات هتتضاف في مرحلة لاحقة.");
   });
 
   el.globalSearchInput.addEventListener("input", handleGlobalSearch);
@@ -303,8 +287,9 @@ function bindEvents() {
   el.saveProfileBtn.addEventListener("click", saveProfileChanges);
 
   el.messageFromProfileBtn.addEventListener("click", () => {
-    if (!state.activePrivatePartner) return;
-    openPrivateChatWith(state.activePrivatePartner);
+    if (state.activePrivatePartner) {
+      openPrivateChatWith(state.activePrivatePartner);
+    }
   });
 
   el.backFromPrivateChatBtn.addEventListener("click", () => {
@@ -314,11 +299,9 @@ function bindEvents() {
 
   document.addEventListener("click", (e) => {
     const insideSearch =
-      globalSearchResultsBox.contains(e.target) ||
-      el.globalSearchInput.contains(e.target);
-    if (!insideSearch) {
-      hideGlobalSearchResults();
-    }
+      globalSearchResultsBox &&
+      (globalSearchResultsBox.contains(e.target) || el.globalSearchInput.contains(e.target));
+    if (!insideSearch) hideGlobalSearchResults();
   });
 
   document.addEventListener("visibilitychange", () => {
@@ -330,10 +313,18 @@ function bindEvents() {
   ["click", "scroll", "keydown", "touchstart", "mousemove"].forEach((evt) => {
     document.addEventListener(evt, touchPresence, { passive: true });
   });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hideGlobalSearchResults();
+      closePanels();
+    }
+  });
 }
 
 function bootstrap() {
   updateSystemStatusUI();
+
   onAuthStateChanged(auth, async (user) => {
     state.user = user || null;
 
@@ -341,24 +332,36 @@ function bootstrap() {
       teardownUserListeners();
       stopHeartbeat();
       resetAppState();
-      updateSystemStatusUI();
       showScreen("auth");
       setAuthMessage("", "info");
+      updateSystemStatusUI();
       return;
     }
 
-    await ensureProfileForUser(user);
-    await touchPresence();
+    // مهم جدًا: ندخل الواجهة فورًا، وبعدها نحمّل باقي البيانات.
     showScreen("main");
-    updateTopProfileUI();
     updateSystemStatusUI();
+
+    try {
+      await ensureProfileForUser(user);
+    } catch (err) {
+      console.warn("ensureProfileForUser failed:", err);
+    }
+
+    updateTopProfileUI();
     startHeartbeat();
-    listenProfiles();
-    listenPublicMessages();
-    listenOnlineUsers();
-    listenPrivateChats();
-    listenVisits();
-    await loadUnreadState();
+
+    try {
+      listenProfiles();
+      listenPublicMessages();
+      listenOnlineUsers();
+      listenPrivateChats();
+      listenVisits();
+      await loadUnreadState();
+      await touchPresence();
+    } catch (err) {
+      console.warn("Listener init failed:", err);
+    }
   });
 }
 
@@ -374,6 +377,7 @@ function resetAppState() {
   state.privateMessages = [];
   state.unreadMap = loadJSON("kareem3_unread_map", {});
   state.seenChatMap = loadJSON("kareem3_seen_chat_map", {});
+
   el.publicMessages.innerHTML = "";
   el.privateMessages.innerHTML = "";
   el.onlineUsersList.innerHTML = "";
@@ -405,6 +409,7 @@ async function handleLogin() {
     setAuthMessage("جاري تسجيل الدخول...");
     const email = el.authEmail.value.trim();
     const password = el.authPassword.value;
+
     await signInWithEmailAndPassword(auth, email, password);
     setAuthMessage("تم تسجيل الدخول بنجاح ✅");
   } catch (err) {
@@ -436,8 +441,14 @@ async function handleRegister() {
       updatedAt: now(),
     };
 
-    await setDoc(doc(db, "profiles", user.uid), profileData, { merge: true });
-    setAuthMessage("تم إنشاء الحساب بنجاح ✅");
+    try {
+      await setDoc(doc(db, "profiles", user.uid), profileData, { merge: true });
+    } catch (err) {
+      console.warn("Profile save failed after register:", err);
+    }
+
+    // نسيب الدخول يكمل طبيعي عبر onAuthStateChanged
+    setAuthMessage("تم تسجيل حسابك بنجاح ✅");
   } catch (err) {
     console.error(err);
     setAuthMessage("لم يتم إنشاء الحساب. تأكد من الإيميل أو كلمة المرور.", "error");
@@ -523,6 +534,7 @@ function toggleEditProfile() {
 async function saveProfileChanges() {
   try {
     if (!state.user) return;
+
     const payload = {
       name: el.editName.value.trim(),
       age: el.editAge.value.trim(),
@@ -534,6 +546,7 @@ async function saveProfileChanges() {
 
     await setDoc(doc(db, "profiles", state.user.uid), payload, { merge: true });
     state.profile = { ...(state.profile || {}), ...payload };
+
     updateTopProfileUI();
     fillProfileScreen();
     alert("تم حفظ التعديلات ✅");
@@ -545,42 +558,57 @@ async function saveProfileChanges() {
 
 async function markOnline() {
   if (!state.user) return;
+
   const profile = state.profile || {};
   const displayName = getProfileDisplayName(profile, state.user.email || "");
   const username = getProfileUsername(profile, state.user.email || "");
 
-  await setDoc(doc(db, "users_online", state.user.uid), {
-    uid: state.user.uid,
-    email: state.user.email || "",
-    name: displayName,
-    username,
-    joinedAt: now(),
-    lastActive: now(),
-    active: true,
-  }, { merge: true });
+  await setDoc(
+    doc(db, "users_online", state.user.uid),
+    {
+      uid: state.user.uid,
+      email: state.user.email || "",
+      name: displayName,
+      username,
+      joinedAt: now(),
+      lastActive: now(),
+      active: true,
+    },
+    { merge: true }
+  );
 }
 
 async function touchPresence() {
   if (!state.user) return;
+
   const profile = state.profile || {};
   const displayName = getProfileDisplayName(profile, state.user.email || "");
   const username = getProfileUsername(profile, state.user.email || "");
-  await setDoc(doc(db, "users_online", state.user.uid), {
-    uid: state.user.uid,
-    email: state.user.email || "",
-    name: displayName,
-    username,
-    joinedAt: now(),
-    lastActive: now(),
-    active: true,
-  }, { merge: true });
+
+  try {
+    await setDoc(
+      doc(db, "users_online", state.user.uid),
+      {
+        uid: state.user.uid,
+        email: state.user.email || "",
+        name: displayName,
+        username,
+        joinedAt: now(),
+        lastActive: now(),
+        active: true,
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn("touchPresence failed:", err);
+  }
 }
 
 async function removeOnlineMarker(userId) {
   try {
     await deleteDoc(doc(db, "users_online", userId));
   } catch (err) {
-    console.warn("removeOnlineMarker failed", err);
+    console.warn("removeOnlineMarker failed:", err);
   }
 }
 
@@ -601,7 +629,7 @@ function stopHeartbeat() {
 function listenProfiles() {
   if (state.profilesUnsub) state.profilesUnsub();
 
-  state.profilesUnsub = onSnapshot(profilesRef, (snap) => {
+  state.profilesUnsub = onSnapshot(collection(db, "profiles"), (snap) => {
     state.profilesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderSearchResults();
   });
@@ -625,10 +653,12 @@ function listenOnlineUsers() {
   state.onlineUnsub = onSnapshot(q, (snap) => {
     const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     state.onlineUsers = all;
+
     state.featuredUsers = all.filter((u) => {
       const last = Number(u.lastActive || u.joinedAt || 0);
       return now() - last <= FEATURED_ACTIVITY_WINDOW_MS;
     });
+
     renderOnlineUsers();
     renderFeaturedUsers();
   });
@@ -640,13 +670,13 @@ function listenPrivateChats() {
 
   const q = query(
     collection(db, "private_chats"),
-    where("members", "array-contains", state.user.uid),
-    orderBy("updatedAt", "desc"),
-    limit(30)
+    where("members", "array-contains", state.user.uid)
   );
 
   state.privateChatsUnsub = onSnapshot(q, (snap) => {
-    state.recentPrivateChats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+    state.recentPrivateChats = items;
     renderPrivateChats();
     updatePrivateBadge();
   });
@@ -658,13 +688,15 @@ function listenVisits() {
 
   const q = query(
     collection(db, "profile_visits"),
-    where("ownerUid", "==", state.user.uid),
-    orderBy("createdAt", "desc"),
-    limit(MAX_PROFILE_VISITS)
+    where("ownerUid", "==", state.user.uid)
   );
 
   state.visitsUnsub = onSnapshot(q, (snap) => {
-    const visits = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const visits = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+      .slice(0, MAX_PROFILE_VISITS);
+
     setDot(el.visitedBadge, visits.length > 0, visits.length);
   });
 }
@@ -705,8 +737,8 @@ async function handlePrivateMessageSend(e) {
 
   const chatId = state.activePrivateChatId;
   const partner = state.activePrivatePartner;
-
   const profile = state.profile || {};
+
   const payload = {
     chatId,
     senderId: state.user.uid,
@@ -722,27 +754,32 @@ async function handlePrivateMessageSend(e) {
 
   try {
     await addDoc(collection(db, "private_chats", chatId, "messages"), payload);
-    await setDoc(doc(db, "private_chats", chatId), {
-      chatId,
-      members: [state.user.uid, partner.uid],
-      updatedAt: now(),
-      lastMessage: text,
-      lastMessageBy: state.user.uid,
-      participants: {
-        [state.user.uid]: {
-          uid: state.user.uid,
-          name: payload.senderName,
-          username: payload.senderUsername,
-          email: state.user.email || "",
-        },
-        [partner.uid]: {
-          uid: partner.uid,
-          name: payload.receiverName,
-          username: payload.receiverUsername,
-          email: partner.email || "",
+
+    await setDoc(
+      doc(db, "private_chats", chatId),
+      {
+        chatId,
+        members: [state.user.uid, partner.uid],
+        updatedAt: now(),
+        lastMessage: text,
+        lastMessageBy: state.user.uid,
+        participants: {
+          [state.user.uid]: {
+            uid: state.user.uid,
+            name: payload.senderName,
+            username: payload.senderUsername,
+            email: state.user.email || "",
+          },
+          [partner.uid]: {
+            uid: partner.uid,
+            name: payload.receiverName,
+            username: payload.receiverUsername,
+            email: partner.email || "",
+          },
         },
       },
-    }, { merge: true });
+      { merge: true }
+    );
 
     el.privateMessageInput.value = "";
     await touchPresence();
@@ -756,21 +793,22 @@ function openPrivateChatWith(profileUser) {
   const me = state.user;
   if (!me || !profileUser) return;
 
-  const p = {
+  const partner = {
     uid: profileUser.uid,
     email: profileUser.email || "",
     name: profileUser.name || getProfileDisplayName(profileUser, profileUser.email || ""),
     username: profileUser.username || getProfileUsername(profileUser, profileUser.email || ""),
   };
 
-  const chatId = chatIdFor(me.uid, p.uid);
+  const chatId = chatIdFor(me.uid, partner.uid);
   state.activePrivateChatId = chatId;
-  state.activePrivatePartner = p;
+  state.activePrivatePartner = partner;
 
-  el.privateChatTitle.textContent = p.name;
-  el.privateChatSubtitle.textContent = p.username;
+  el.privateChatTitle.textContent = partner.name;
+  el.privateChatSubtitle.textContent = partner.username;
 
   loadPrivateMessages(chatId);
+
   state.seenChatMap[chatId] = now();
   state.unreadMap[chatId] = 0;
   saveJSON("kareem3_seen_chat_map", state.seenChatMap);
@@ -811,13 +849,6 @@ function markCurrentChatSeen(chatId) {
 function updatePrivateBadge() {
   const total = Object.values(state.unreadMap || {}).reduce((sum, n) => sum + Number(n || 0), 0);
   setDot(el.privateMessagesBadge, total > 0, total);
-}
-
-function incrementUnread(chatId) {
-  if (!chatId) return;
-  state.unreadMap[chatId] = Number(state.unreadMap[chatId] || 0) + 1;
-  saveJSON("kareem3_unread_map", state.unreadMap);
-  updatePrivateBadge();
 }
 
 function renderPublicMessages() {
@@ -878,9 +909,17 @@ function renderPrivateMessages() {
 
 function renderOnlineUsers() {
   el.onlineUsersList.innerHTML = "";
-  const q = filterVisibleUsers(state.onlineUsers);
+  const list = filterVisibleUsers(state.onlineUsers);
 
-  for (const user of q) {
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "لا يوجد مستخدمون الآن.";
+    el.onlineUsersList.appendChild(empty);
+    return;
+  }
+
+  for (const user of list) {
     const item = buildUserChip(user, (u) => openProfileView(u, "online"));
     el.onlineUsersList.appendChild(item);
   }
@@ -888,9 +927,17 @@ function renderOnlineUsers() {
 
 function renderFeaturedUsers() {
   el.featuredUsersList.innerHTML = "";
-  const q = filterVisibleUsers(state.featuredUsers);
+  const list = filterVisibleUsers(state.featuredUsers);
 
-  for (const user of q) {
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "لا يوجد مستخدمون مميزون الآن.";
+    el.featuredUsersList.appendChild(empty);
+    return;
+  }
+
+  for (const user of list) {
     const item = buildUserChip(user, (u) => openProfileView(u, "featured"));
     el.featuredUsersList.appendChild(item);
   }
@@ -930,6 +977,10 @@ function renderPrivateChats() {
         email: otherProfile.email || "",
         name: otherProfile.name || otherProfile.displayName || "مستخدم",
         username: otherProfile.username || "",
+        age: otherProfile.age || "",
+        nationality: otherProfile.nationality || "",
+        gender: otherProfile.gender || "",
+        bio: otherProfile.bio || "",
       });
     });
 
@@ -940,24 +991,26 @@ function renderPrivateChats() {
 function buildUserChip(user, onClick) {
   const btn = document.createElement("button");
   btn.className = "user-chip";
+  const firstLetter = (user.name || user.username || "م")[0] || "م";
+
   btn.innerHTML = `
-    <span class="user-avatar">${escapeHTML((user.name || user.username || "م")[0])}</span>
+    <span class="user-avatar">${escapeHTML(firstLetter)}</span>
     <span class="user-chip-text">
       <strong>${escapeHTML(user.name || user.displayName || "مستخدم")}</strong>
       <small>${escapeHTML(user.username || "")}</small>
     </span>
   `;
+
   btn.addEventListener("click", () => onClick(user));
   return btn;
 }
 
 function filterVisibleUsers(users) {
   const term = el.globalSearchInput.value.trim().toLowerCase();
-  const source = (users || []).filter((u) => {
+  return (users || []).filter((u) => {
     const text = `${u.name || ""} ${u.username || ""} ${u.email || ""}`.toLowerCase();
     return !term || text.includes(term);
   });
-  return source;
 }
 
 function filterPrivateChats(chats, term) {
@@ -980,6 +1033,8 @@ function handlePrivateSearch() {
 }
 
 function renderSearchResults() {
+  if (!globalSearchResultsBox) return;
+
   const term = el.globalSearchInput.value.trim().toLowerCase();
   if (!term) {
     hideGlobalSearchResults();
@@ -1014,16 +1069,19 @@ function renderSearchResults() {
 
     btn.addEventListener("click", () => {
       hideGlobalSearchResults();
-      openProfileView({
-        uid: m.uid,
-        email: m.email || "",
-        name: m.name || getProfileDisplayName(m, m.email || ""),
-        username: m.username || getProfileUsername(m, m.email || ""),
-        age: m.age || "",
-        nationality: m.nationality || "",
-        gender: m.gender || "",
-        bio: m.bio || "",
-      }, "search");
+      openProfileView(
+        {
+          uid: m.uid,
+          email: m.email || "",
+          name: m.name || getProfileDisplayName(m, m.email || ""),
+          username: m.username || getProfileUsername(m, m.email || ""),
+          age: m.age || "",
+          nationality: m.nationality || "",
+          gender: m.gender || "",
+          bio: m.bio || "",
+        },
+        "search"
+      );
     });
 
     globalSearchResultsBox.appendChild(btn);
@@ -1106,17 +1164,7 @@ async function loadUnreadState() {
   updatePrivateBadge();
 }
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    hideGlobalSearchResults();
-    closePanels();
-  }
-});
-
-/*
-  ملاحظة تنفيذية:
-  - الشات العام الآن شغال بآخر 70 رسالة فقط في العرض.
-  - الشات الخاص مبني على private_chats/{chatId}/messages.
-  - البادج الأحمر يختفي لو 0 ويظهر لو >= 1 بنفس الشكل الحالي.
-  - لوحة الملفات تظهر لك فقط لو الإيميل = ADMIN_EMAIL.
-*/
+function updatePrivateBadge() {
+  const total = Object.values(state.unreadMap || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+  setDot(el.privateMessagesBadge, total > 0, total);
+}
