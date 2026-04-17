@@ -1,30 +1,19 @@
-// main.js - Kareem 3 (Firebase Ready Full Version)
-
 import { sendMessage, listenMessages } from "./firebase.js";
 
-// =====================
-// عناصر الصفحة
-// =====================
 const chatBox = document.getElementById("chatBox");
 const msgInput = document.getElementById("msgInput");
 const sendBtn = document.getElementById("sendBtn");
 const menuBtn = document.getElementById("menuBtn");
 const sidebar = document.getElementById("sidebar");
 
-// =====================
-// Toggle Sidebar
-// =====================
 menuBtn.onclick = () => {
   sidebar.classList.toggle("active");
 };
 
-// =====================
-// Render Messages
-// =====================
-function renderMessages(messages) {
+function render(messages) {
   chatBox.innerHTML = "";
 
-  messages.slice(-70).forEach((msg) => {
+  messages.slice(-70).forEach(msg => {
     const div = document.createElement("div");
     div.className = "message";
     div.textContent = msg.text;
@@ -34,30 +23,15 @@ function renderMessages(messages) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// =====================
-// Send Message
-// =====================
-async function handleSend() {
-  const text = msgInput.value.trim();
+sendBtn.onclick = async () => {
+  if (!msgInput.value.trim()) return;
 
-  if (!text) return;
-
-  await sendMessage(text);
+  await sendMessage(msgInput.value);
   msgInput.value = "";
-}
-
-// =====================
-// Events
-// =====================
-sendBtn.onclick = handleSend;
+};
 
 msgInput.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") {
-    handleSend();
-  }
+  if (e.key === "Enter") sendBtn.click();
 });
 
-// =====================
-// Real-time listener
-// =====================
-listenMessages(renderMessages);
+listenMessages(render);
