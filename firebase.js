@@ -1,3 +1,5 @@
+// firebase.js (Full Ready - Kareem 3 Test)
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
   getFirestore,
@@ -8,7 +10,9 @@ import {
   orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+// =====================
 // Firebase Config
+// =====================
 const firebaseConfig = {
   apiKey: "AIzaSyCG2tZ86jmtuc_smyyJE4a0mx7V5kgU6Xc",
   authDomain: "shatnar-f2081.firebaseapp.com",
@@ -19,30 +23,49 @@ const firebaseConfig = {
   measurementId: "G-HVNTN7FGH4"
 };
 
+// =====================
 // Init Firebase
+// =====================
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ===== COLLECTION =====
+// =====================
+// Collection
+// =====================
 const messagesRef = collection(db, "public_messages");
 
-// 🔥 إرسال رسالة
-export async function sendMessage(text) {
-  await addDoc(messagesRef, {
-    text: text,
-    time: Date.now()
-  });
+// =====================
+// Send Message
+// =====================
+async function sendMessage(text) {
+  try {
+    await addDoc(messagesRef, {
+      text: text,
+      time: Date.now()
+    });
+  } catch (err) {
+    console.error("Send Error:", err);
+  }
 }
 
-// 🔥 الاستماع للرسائل (Real-time)
-export function listenMessages(callback) {
+// =====================
+// Listen Messages (Real-time)
+// =====================
+function listenMessages(callback) {
   const q = query(messagesRef, orderBy("time"));
 
   onSnapshot(q, (snapshot) => {
     const messages = [];
-    snapshot.forEach(doc => {
+
+    snapshot.forEach((doc) => {
       messages.push(doc.data());
     });
+
     callback(messages);
   });
 }
+
+// =====================
+// Export
+// =====================
+export { sendMessage, listenMessages };
