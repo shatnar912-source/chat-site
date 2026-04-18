@@ -1,9 +1,17 @@
 // main.js
-// منطق الواجهة: تسجيل وهمي، واجهة تفاعلية، شات عام، مؤشرات قراءة الرسائل (seen)
-// يعتمد على firebase.js الموجود في نفس المجلد والذي يهيئ app, auth, db
+// منطق الواجهة المعدل: ربط firebase.js كملف واحد، إصلاح الريفريش، drawer للقوائم، منع pull-to-refresh، شات عام مع seen
+// هذا الملف يفترض أن firebase.js يصدر: auth, db, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+// collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, arrayUnion, where, ensureUserProfile
 
-import { auth, db, onAuthStateChanged } from './firebase.js';
 import {
+  auth,
+  db,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  ensureUserProfile,
+  // Firestore helpers
   collection,
   addDoc,
   query,
@@ -13,15 +21,8 @@ import {
   doc,
   updateDoc,
   arrayUnion,
-  getDocs,
-  where,
-  limit
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+  where
+} from './firebase.js';
 
 /* ---------------------------
    إعدادات المستخدم الوهمي
@@ -39,17 +40,22 @@ const DEMO_PROFILE = {
    عناصر DOM
    --------------------------- */
 const privateListBtn = document.getElementById('privateListBtn');
-const privateListDropdown = document.getElementById('privateListDropdown');
+const privateListDrawer = document.getElementById('privateListDrawer');
+const closePrivateDrawer = document.getElementById('closePrivateDrawer');
 const privateThreadsList = document.getElementById('privateThreadsList');
 const openAllThreads = document.getElementById('openAllThreads');
 
-const profileBtn = document.getElementById('profileBtn');
-const profileMenu = document.getElementById('profileMenu');
+const menuBtn = document.getElementById('menuBtn');
+const profileDrawer = document.getElementById('profileDrawer');
+const closeProfileDrawer = document.getElementById('closeProfileDrawer');
 const profileName = document.getElementById('profileName');
 const profileBio = document.getElementById('profileBio');
+const editProfileBtn = document.getElementById('editProfileBtn');
 const appSettingsBtn = document.getElementById('appSettingsBtn');
 const viewProfileBtn = document.getElementById('viewProfileBtn');
 const logoutBtn = document.getElementById('logoutBtn');
+
+const brandBtn = document.getElementById('brandBtn');
 
 const userSearch = document.getElementById('userSearch');
 const searchClear = document.getElementById('searchClear');
@@ -60,8 +66,10 @@ const onlineUsersList = document.getElementById('onlineUsersList');
 const publicMessages = document.getElementById('publicMessages');
 const publicMessageForm = document.getElementById('publicMessageForm');
 const publicMessageInput = document.getElementById('publicMessageInput');
+const sendPublicBtn = document.getElementById('sendPublicBtn');
 
 const toastEl = document.getElementById('toast');
+const pullIndicator = document.getElementById('pullIndicator');
 
 /* ---------------------------
    حالة محلية
@@ -81,24 +89,18 @@ function showToast(text, timeout = 3000) {
   }, timeout);
 }
 
-function toggleDropdown(dropEl) {
-  const isHidden = dropEl.getAttribute('aria-hidden') === 'true';
-  dropEl.setAttribute('aria-hidden', String(!isHidden));
-  if (!isHidden) {
-    // إغلاق
-    dropEl.style.pointerEvents = 'none';
-  } else {
-    dropEl.style.pointerEvents = 'auto';
-  }
+function openDrawer(drawerEl) {
+  if (!drawerEl) return;
+  drawerEl.setAttribute('aria-hidden', 'false');
 }
-
-/* إغلاق كل القوائم */
-function closeAllDropdowns() {
-  [privateListDropdown, profileMenu].forEach(el => {
-    if (!el) return;
-    el.setAttribute('aria-hidden', 'true');
-    el.style.pointerEvents = 'none';
-  });
+function closeDrawer(drawerEl) {
+  if (!drawerEl) return;
+  drawerEl.setAttribute('aria-hidden', 'true');
+}
+function toggleDrawer(drawerEl) {
+  if (!drawerEl) return;
+  const isHidden = drawerEl.getAttribute('aria-hidden') === 'true';
+  drawerEl.setAttribute('aria-hidden', String(!isHidden));
 }
 
 /* تنسيق وقت بسيط */
@@ -110,28 +112,52 @@ function formatTime(ts) {
   return `${hh}:${mm}`;
 }
 
+/* هروب HTML لمنع XSS */
+function escapeHtml(unsafe) {
+  if (!unsafe) return '';
+  return unsafe
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 /* ---------------------------
-   تهيئة الأحداث على الواجهة
+   أحداث الواجهة والتعامل مع القوائم
    --------------------------- */
 function attachUIHandlers() {
-  // قائمة الرسائل الخاصة
+  // فتح/إغلاق drawer الرسائل الخاصة
   privateListBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleDropdown(privateListDropdown);
-    profileMenu.setAttribute('aria-hidden', 'true');
+    toggleDrawer(privateListDrawer);
+    closeDrawer(profileDrawer);
   });
+  closePrivateDrawer.addEventListener('click', () => closeDrawer(privateListDrawer));
 
-  // بروفايل
-  profileBtn.addEventListener('click', (e) => {
+  // فتح/إغلاق drawer البروفايل
+  menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = profileMenu.getAttribute('aria-hidden') === 'true';
-    profileMenu.setAttribute('aria-hidden', String(!isHidden));
-    privateListDropdown.setAttribute('aria-hidden', 'true');
+    toggleDrawer(profileDrawer);
+    closeDrawer(privateListDrawer);
+  });
+  closeProfileDrawer.addEventListener('click', () => closeDrawer(profileDrawer));
+
+  // إغلاق القوائم عند النقر خارجها
+  document.addEventListener('click', () => {
+    closeDrawer(privateListDrawer);
+    closeDrawer(profileDrawer);
+  });
+  // منع إغلاق عند النقر داخل drawer
+  [privateListDrawer, profileDrawer].forEach(d => {
+    if (!d) return;
+    d.addEventListener('click', (e) => e.stopPropagation());
   });
 
-  // أزرار البروفايل (وهمية الآن)
+  // أزرار البروفايل
   appSettingsBtn.addEventListener('click', () => showToast('إعدادات التطبيق (وهمية)'));
   viewProfileBtn.addEventListener('click', () => showToast('عرض الملف (وهمي)'));
+  editProfileBtn.addEventListener('click', () => showToast('تحرير الملف (وهمي)'));
   logoutBtn.addEventListener('click', async () => {
     try {
       await signOut(auth);
@@ -140,11 +166,6 @@ function attachUIHandlers() {
       console.error(err);
       showToast('خطأ أثناء تسجيل الخروج');
     }
-  });
-
-  // إغلاق القوائم عند النقر خارجها
-  document.addEventListener('click', () => {
-    closeAllDropdowns();
   });
 
   // شريط البحث
@@ -157,18 +178,22 @@ function attachUIHandlers() {
     filterOnlineUsers('');
   });
 
-  // إرسال رسالة عامة
-  publicMessageForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // إرسال رسالة عامة (زر)
+  sendPublicBtn.addEventListener('click', async () => {
     const text = publicMessageInput.value.trim();
     if (!text) return;
     await sendPublicMessage(text);
     publicMessageInput.value = '';
   });
 
-  // فتح كل المحادثات (وهمي)
-  openAllThreads.addEventListener('click', () => {
-    showToast('فتح كل المحادثات (وهمي)');
+  // منع submit الافتراضي لأي نموذج (حماية إضافية)
+  publicMessageForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+  });
+
+  // زر العلامة التجارية يمنع السحب الافتراضي عند الضغط القوي
+  brandBtn.addEventListener('touchstart', (e) => {
+    e.stopPropagation();
   });
 }
 
@@ -196,7 +221,6 @@ function renderOnlineUsers(list = MOCK_ONLINE_USERS) {
       </div>
     `;
     li.addEventListener('click', () => {
-      // فتح محادثة خاصة (وهمي)
       showToast(`فتح محادثة خاصة مع ${u.name} (وهمي)`);
     });
     onlineUsersList.appendChild(li);
@@ -205,7 +229,7 @@ function renderOnlineUsers(list = MOCK_ONLINE_USERS) {
 }
 
 /* ---------------------------
-   قائمة المحادثات الخاصة (وهمية) - عرض آخر محادثة
+   قائمة المحادثات الخاصة (وهمية)
    --------------------------- */
 function renderPrivateThreadsMock() {
   privateThreadsList.innerHTML = '';
@@ -228,21 +252,21 @@ function renderPrivateThreadsMock() {
 }
 
 /* ---------------------------
-   وظائف Firebase: تسجيل وهمي وتسجيل الدخول
+   Firebase: تسجيل وهمي وتسجيل الدخول
    --------------------------- */
 async function ensureDemoUserAndSignIn() {
   try {
     // محاولة إنشاء المستخدم التجريبي (إن لم يكن موجوداً)
     await createUserWithEmailAndPassword(auth, DEMO_EMAIL, DEMO_PASS);
-    // لو نجح الإنشاء، يمكننا لاحقاً حفظ بيانات الملف في مجموعة users إن أردنا
     console.log('Demo user created');
   } catch (err) {
     // إذا كان المستخدم موجوداً سيُرمى خطأ؛ نتجاهله
-    // console.warn('createUser error (may already exist):', err.message);
   }
 
   try {
     const cred = await signInWithEmailAndPassword(auth, DEMO_EMAIL, DEMO_PASS);
+    // تأكد من وجود ملف المستخدم في مجموعة users
+    await ensureUserProfile(cred.user.uid, { displayName: DEMO_PROFILE.displayName, email: DEMO_EMAIL, nationality: DEMO_PROFILE.nationality, gender: DEMO_PROFILE.gender, bio: DEMO_PROFILE.bio });
     console.log('Signed in as demo:', cred.user.uid);
   } catch (err) {
     console.error('Sign-in error:', err);
@@ -264,10 +288,11 @@ async function sendPublicMessage(text) {
     await addDoc(collection(db, 'messages'), {
       threadId: GLOBAL_THREAD_ID,
       senderId: auth.currentUser.uid,
+      senderName: auth.currentUser.displayName || DEMO_PROFILE.displayName,
       text: text,
       timestamp: serverTimestamp(),
-      deliveredTo: [], // يمكن تحديثها لاحقًا
-      seenBy: [] // سنضيف uid عند العرض
+      deliveredTo: [],
+      seenBy: []
     });
   } catch (err) {
     console.error('sendPublicMessage error', err);
@@ -276,7 +301,6 @@ async function sendPublicMessage(text) {
 }
 
 function startListeningPublicMessages() {
-  // إلغاء الاشتراك السابق إن وُجد
   if (unsubscribePublic) unsubscribePublic();
 
   const q = query(collection(db, 'messages'), where('threadId', '==', GLOBAL_THREAD_ID), orderBy('timestamp', 'asc'));
@@ -297,14 +321,14 @@ function startListeningPublicMessages() {
       const timeText = m.timestamp ? formatTime(m.timestamp) : '';
 
       li.innerHTML = `
-        <div class="msg-meta"><span class="msg-sender">${senderName}</span> <span class="msg-time">${timeText}</span></div>
+        <div class="msg-meta"><span class="msg-sender">${escapeHtml(senderName)}</span> <span class="msg-time">${timeText}</span></div>
         <div class="msg-body">${escapeHtml(m.text || '')}</div>
         <div class="msg-status">${renderStatusIcon(m, isSelf)}</div>
       `;
 
       publicMessages.appendChild(li);
 
-      // إذا لم يكن المستخدم الحالي ضمن seenBy، نضيفه (مؤشر القراءة)
+      // تحديث seenBy عند العرض (نضيف currentUser.uid)
       if (currentUser && Array.isArray(m.seenBy) && !m.seenBy.includes(currentUser.uid)) {
         try {
           const docRef = doc(db, 'messages', d.id);
@@ -325,28 +349,12 @@ function startListeningPublicMessages() {
 
 /* رسم أيقونة الحالة (delivered/seen) */
 function renderStatusIcon(message, isSelf) {
-  // إذا لم تكن رسالة المرسل هي للمستخدم الحالي، لا نعرض أيقونة
   if (!isSelf) return '';
   const seenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
-  // إذا عدد seenBy > 0 و ليس فقط المرسل نفسه => اعتبرتها مقروءة
   if (seenBy.length > 0) {
     return `<i class="fa-solid fa-check-double seen" title="مقروء"></i>`;
   }
-  // لم تُقرأ بعد
   return `<i class="fa-solid fa-check-double" title="تم الإرسال"></i>`;
-}
-
-/* ---------------------------
-   مساعدة: هروب HTML لمنع XSS من النصوص (نستخدمها لأننا نعرض نصوص المستخدمين)
-   --------------------------- */
-function escapeHtml(unsafe) {
-  if (!unsafe) return '';
-  return unsafe
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }
 
 /* ---------------------------
@@ -354,23 +362,16 @@ function escapeHtml(unsafe) {
    --------------------------- */
 function onUserSignedIn(user) {
   currentUser = user;
-  // عرض بيانات البروفايل الوهمية
   profileName.textContent = DEMO_PROFILE.displayName;
   profileBio.textContent = DEMO_PROFILE.bio;
 
-  // عرض المستخدمين المتصلين (وهمي)
   renderOnlineUsers(MOCK_ONLINE_USERS);
-
-  // عرض قائمة المحادثات الخاصة (وهمية)
   renderPrivateThreadsMock();
-
-  // بدء الاستماع للشات العام
   startListeningPublicMessages();
 }
 
 function onUserSignedOut() {
   currentUser = null;
-  // تفريغ القوائم
   publicMessages.innerHTML = '<div class="empty-state">سجل الدردشة فارغ. سجّل الدخول لبدء المحادثة.</div>';
   onlineUsersList.innerHTML = '';
   onlineCount.textContent = '0';
@@ -395,10 +396,76 @@ function filterOnlineUsers(queryText) {
 }
 
 /* ---------------------------
+   منع pull-to-refresh الافتراضي على الموبايل
+   - نمنع السلوك الافتراضي أثناء السحب العمودي داخل التطبيق
+   - نعرض مؤشر تحديث مخصص عند السحب للأسفل لمسافة محددة
+   --------------------------- */
+function attachPullToRefreshPrevention() {
+  let startY = 0;
+  let currentY = 0;
+  let pulling = false;
+  const threshold = 70; // بكسل لبدء التحديث
+  const el = document.scrollingElement || document.documentElement;
+
+  window.addEventListener('touchstart', (e) => {
+    if (el.scrollTop === 0) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    } else {
+      pulling = false;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!pulling) return;
+    currentY = e.touches[0].clientY;
+    const diff = currentY - startY;
+    if (diff > 0) {
+      // منع السلوك الافتراضي للمتصفح (pull-to-refresh)
+      e.preventDefault();
+      // عرض مؤشر مخصص تدريجيًا
+      if (pullIndicator) {
+        if (diff > 10) pullIndicator.setAttribute('aria-hidden', 'false');
+        pullIndicator.style.transform = `translateX(-50%) translateY(${Math.min(diff - 40, 40)}px)`;
+      }
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', async (e) => {
+    if (!pulling) return;
+    const diff = currentY - startY;
+    if (diff > threshold) {
+      // تنفيذ تحديث مخصص: إعادة تحميل الرسائل فقط (بدون إعادة تحميل الصفحة)
+      if (pullIndicator) {
+        pullIndicator.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> جاري التحديث...`;
+      }
+      // إعادة تشغيل الاشتراك لجلب أحدث الرسائل
+      if (unsubscribePublic) unsubscribePublic();
+      startListeningPublicMessages();
+      setTimeout(() => {
+        if (pullIndicator) {
+          pullIndicator.setAttribute('aria-hidden', 'true');
+          pullIndicator.style.transform = '';
+          pullIndicator.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> تحديث`;
+        }
+      }, 800);
+    } else {
+      if (pullIndicator) {
+        pullIndicator.setAttribute('aria-hidden', 'true');
+        pullIndicator.style.transform = '';
+      }
+    }
+    pulling = false;
+    startY = currentY = 0;
+  }, { passive: true });
+}
+
+/* ---------------------------
    بدء التطبيق
    --------------------------- */
 async function startApp() {
   attachUIHandlers();
+  attachPullToRefreshPrevention();
 
   // استمع لحالة المصادقة
   onAuthStateChanged(auth, (user) => {
