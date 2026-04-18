@@ -11,25 +11,21 @@
 
     <!-- الهيدر -->
     <header class="topbar">
-      <button id="openRightPanelBtn" class="icon-btn" aria-label="فتح القائمة اليمنى">☰</button>
+      <button id="openLeftPanelBtn" class="icon-btn messages-btn" aria-label="فتح الرسائل الخاصة">
+        💬
+        <span id="privateMessagesBadge" class="badge hidden">0</span>
+      </button>
 
-      <div class="brand">
-        <span class="brand-mark">ش</span>
-        <div class="brand-text">
-          <strong>شات نار</strong>
-          <small>كريم 3 المحدث</small>
-        </div>
+      <div class="brand center-brand">
+        <span class="brand-title">شات نار</span>
       </div>
 
-      <div class="topbar-actions">
-        <button id="openLeftPanelBtn" class="icon-btn messages-icon" aria-label="الرسائل الخاصة">
-          💬
-          <span id="privateMessagesBadge" class="badge hidden">0</span>
-        </button>
-      </div>
+      <button id="openRightPanelBtn" class="icon-btn" aria-label="فتح القائمة">
+        ☰
+      </button>
     </header>
 
-    <!-- شريط البحث تحت الهيدر -->
+    <!-- شريط البحث -->
     <section class="search-wrap">
       <div class="search-box">
         <input
@@ -39,149 +35,141 @@
           autocomplete="off"
         />
       </div>
+
+      <div id="globalSearchResults" class="search-results hidden card"></div>
     </section>
 
     <!-- الصفحة الرئيسية -->
     <main class="content-grid">
 
-      <!-- القائمة اليمنى -->
-      <aside id="rightPanel" class="side-panel right-panel">
-        <div class="panel-head">
-          <h2>القائمة</h2>
-          <button id="closeRightPanelBtn" class="icon-btn" aria-label="إغلاق القائمة اليمنى">✕</button>
-        </div>
-
-        <section class="profile-summary card">
-          <div class="profile-avatar" id="profileAvatar">👤</div>
-          <div class="profile-meta">
-            <h3 id="profileName">اسمك هنا</h3>
-            <p id="profileUsername">@username</p>
-          </div>
-        </section>
-
-        <nav class="menu-list">
-          <button id="visitedProfileBtn" class="menu-item">
-            <span class="menu-icon">👁️</span>
-            <span>من زار ملفك</span>
-            <span id="visitedBadge" class="badge hidden">0</span>
-          </button>
-
-          <button id="settingsBtn" class="menu-item">
-            <span class="menu-icon">⚙️</span>
-            <span>إعدادات التطبيق</span>
-          </button>
-
-          <button id="logoutBtn" class="menu-item danger">
-            <span class="menu-icon">🚪</span>
-            <span>تسجيل الخروج</span>
-          </button>
-        </nav>
-
-        <section id="adminFilesPanel" class="admin-panel card hidden">
-          <h3>حالة الملفات</h3>
-          <ul class="status-list">
-            <li><span>index.html</span><b id="statusIndex">●</b></li>
-            <li><span>main.js</span><b id="statusMain">●</b></li>
-            <li><span>firebase.js</span><b id="statusFirebase">●</b></li>
-            <li><span>style.css</span><b id="statusStyle">●</b></li>
-          </ul>
-        </section>
-      </aside>
-
-      <!-- المحتوى الرئيسي -->
-      <section class="main-panel">
-
-        <!-- البلوك الأول: المتصلين الآن -->
-        <div class="panel-head">
+      <!-- البلوك 1: المتصلين الآن -->
+      <section class="section-card card">
+        <div class="section-head">
           <h2>المتصلين الآن</h2>
-          <span class="panel-subtitle">الأحدث يظهر في الأعلى</span>
+          <span>الأحدث يظهر في الأعلى</span>
         </div>
 
-        <section class="card users-strip">
-          <div id="onlineUsersList" class="users-list">
-            <!-- online users -->
-          </div>
-        </section>
-
-        <!-- البلوك الثاني: المستخدمين المميزين -->
-        <div class="panel-head">
-          <h2>المستخدمين المميزين</h2>
-          <span class="panel-subtitle">يختفون بعد 10 دقائق بدون نشاط</span>
+        <div id="onlineUsersList" class="users-list horizontal">
+          <!-- online users -->
         </div>
-
-        <section class="card users-strip">
-          <div id="featuredUsersList" class="users-list">
-            <!-- featured users -->
-          </div>
-        </section>
-
-        <!-- البلوك الثالث: الشات العام -->
-        <section class="chat-card card">
-          <div class="chat-head">
-            <div>
-              <h2>الشات العام</h2>
-              <p>رسائل نصية + إيموجي فقط</p>
-            </div>
-          </div>
-
-          <div id="publicMessages" class="messages-list" aria-live="polite">
-            <!-- public messages -->
-          </div>
-
-          <form id="publicMessageForm" class="message-form" autocomplete="off">
-            <input
-              id="publicMessageInput"
-              type="text"
-              placeholder="اكتب رسالة..."
-            />
-            <button type="submit" class="btn primary">إرسال</button>
-          </form>
-        </section>
       </section>
 
-      <!-- القائمة اليسرى: الرسائل الخاصة -->
-      <aside id="leftPanel" class="side-panel left-panel">
-        <div class="panel-head">
-          <h2>المراسلات الخاصة</h2>
-          <button id="closeLeftPanelBtn" class="icon-btn" aria-label="إغلاق القائمة اليسرى">✕</button>
+      <!-- البلوك 2: المستخدمين المميزين -->
+      <section class="section-card card">
+        <div class="section-head">
+          <h2>المستخدمين المميزين</h2>
+          <span>يختفون بعد 10 دقائق بدون نشاط</span>
         </div>
 
-        <section class="card private-search">
-          <input
-            id="privateSearchInput"
-            type="text"
-            placeholder="ابحث في المحادثات الخاصة..."
-            autocomplete="off"
-          />
-        </section>
+        <div id="featuredUsersList" class="users-list horizontal">
+          <!-- featured users -->
+        </div>
+      </section>
 
-        <section class="card private-users">
-          <h3>المحادثات</h3>
-          <div id="privateChatsList" class="users-list vertical">
-            <!-- recent private chats -->
-          </div>
-        </section>
-      </aside>
+      <!-- البلوك 3: الشات العام -->
+      <section class="section-card chat-card card">
+        <div class="section-head">
+          <h2>الشات العام</h2>
+          <span>رسائل نصية + إيموجي فقط</span>
+        </div>
+
+        <div id="publicMessages" class="messages-list" aria-live="polite">
+          <!-- public messages -->
+        </div>
+
+        <form id="publicMessageForm" class="message-form" autocomplete="off">
+          <input
+            id="publicMessageInput"
+            type="text"
+            placeholder="اكتب رسالة..."
+          />
+          <button type="submit" class="btn primary">إرسال</button>
+        </form>
+      </section>
 
     </main>
+
+    <!-- القائمة اليمنى -->
+    <aside id="rightPanel" class="side-panel right-panel">
+      <div class="panel-head">
+        <h3>القائمة</h3>
+        <button id="closeRightPanelBtn" class="icon-btn" aria-label="إغلاق القائمة">✕</button>
+      </div>
+
+      <section class="profile-summary card">
+        <div id="profileAvatar" class="profile-avatar">👤</div>
+        <div class="profile-meta">
+          <h4 id="profileName">اسمك هنا</h4>
+          <p id="profileUsername">@username</p>
+        </div>
+      </section>
+
+      <nav class="menu-list">
+        <button id="visitedProfileBtn" class="menu-item">
+          <span class="menu-icon">👁️</span>
+          <span>من زار ملفك</span>
+          <span id="visitedBadge" class="badge hidden">0</span>
+        </button>
+
+        <button id="settingsBtn" class="menu-item">
+          <span class="menu-icon">⚙️</span>
+          <span>إعدادات التطبيق</span>
+        </button>
+
+        <button id="logoutBtn" class="menu-item danger">
+          <span class="menu-icon">🚪</span>
+          <span>تسجيل الخروج</span>
+        </button>
+      </nav>
+
+      <section id="adminFilesPanel" class="admin-panel card hidden">
+        <h3>حالة الملفات</h3>
+        <ul class="status-list">
+          <li><span>index.html</span><b id="statusIndex">●</b></li>
+          <li><span>main.js</span><b id="statusMain">●</b></li>
+          <li><span>firebase.js</span><b id="statusFirebase">●</b></li>
+          <li><span>style.css</span><b id="statusStyle">●</b></li>
+        </ul>
+      </section>
+    </aside>
+
+    <!-- القائمة اليسرى: الرسائل الخاصة -->
+    <aside id="leftPanel" class="side-panel left-panel">
+      <div class="panel-head">
+        <h3>المراسلات الخاصة</h3>
+        <button id="closeLeftPanelBtn" class="icon-btn" aria-label="إغلاق الرسائل الخاصة">✕</button>
+      </div>
+
+      <section class="private-search card">
+        <input
+          id="privateSearchInput"
+          type="text"
+          placeholder="ابحث في المحادثات الخاصة..."
+          autocomplete="off"
+        />
+      </section>
+
+      <section class="private-users card">
+        <h4>المحادثات</h4>
+        <div id="privateChatsList" class="users-list vertical">
+          <!-- recent private chats -->
+        </div>
+      </section>
+    </aside>
 
     <!-- صفحة البروفايل -->
     <section id="profileScreen" class="profile-screen hidden">
       <header class="topbar">
         <button id="backToMainBtn" class="icon-btn" aria-label="رجوع">←</button>
-        <div class="brand">
-          <span class="brand-mark">ش</span>
-          <div class="brand-text">
-            <strong>البروفايل</strong>
-            <small>عرض وتعديل</small>
-          </div>
+        <div class="brand center-brand">
+          <span class="brand-title">البروفايل</span>
         </div>
-        <div></div>
+        <div class="spacer"></div>
       </header>
 
       <main class="profile-page card">
         <div class="profile-hero">
-          <div class="profile-avatar large" id="profilePageAvatar">👤</div>
+          <div id="profilePageAvatar" class="profile-avatar large">👤</div>
           <div class="profile-title">
             <h1 id="profilePageName">اسم المستخدم</h1>
             <p id="profilePageUsername">@username</p>
@@ -252,17 +240,18 @@
     <section id="privateChatScreen" class="private-chat-screen hidden">
       <header class="topbar">
         <button id="backFromPrivateChatBtn" class="icon-btn" aria-label="رجوع">←</button>
-        <div class="brand">
-          <span class="brand-mark">💬</span>
-          <div class="brand-text">
-            <strong id="privateChatTitle">شات خاص</strong>
-            <small id="privateChatSubtitle">محادثة مستقلة</small>
-          </div>
+        <div class="brand center-brand">
+          <span class="brand-title" id="privateChatTitle">شات خاص</span>
         </div>
-        <div></div>
+        <div class="spacer"></div>
       </header>
 
       <main class="chat-card card">
+        <div class="section-head private-chat-head">
+          <h2 id="privateChatSubtitle">محادثة مستقلة</h2>
+          <span>رسائل خاصة</span>
+        </div>
+
         <div id="privateMessages" class="messages-list" aria-live="polite">
           <!-- private messages -->
         </div>
