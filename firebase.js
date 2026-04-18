@@ -1,142 +1,228 @@
-(() => { 'use strict';
+// ===============================
+// K3-Z | firebase.js
+// Layer 4 - Firebase Adapter
+// ===============================
 
-const STORAGE_KEYS = { config: 'kareem3_firebase_config', bridgeState: 'kareem3_firebase_bridge_state', };
+(function () {
+  "use strict";
 
-const state = { ready: false, mode: 'disabled', // disabled | local | firebase app: null, auth: null, db: null, user: null, listeners: new Set(), lastError: null, };
+  const FirebaseAdapter = {
+    ready: false,
+    app: null,
+    db: null,
+    auth: null,
+    config: null,
+    hasSdk: false,
 
-function safeJSONParse(value, fallback) { try { if (value === null || value === undefined || value === '') return fallback; return JSON.parse(value); } catch { return fallback; } }
+    init(config) {
+      this.config = config || window.K3_FIREBASE_CONFIG || window.firebaseConfig || null;
+      this.hasSdk = typeof window.firebase !== "undefined";
 
-function safeJSONStringify(value, fallback = '{}') { try { return JSON.stringify(value); } catch { return fallback; } }
+      // Safely handle "no Firebase SDK / no config" mode
+      if (!this.hasSdk || !this.config) {
+        this.ready = false;
+        this.reportStatus(false);
+        this.hookEvents();
+        return false;
+      }
 
-function getStoredConfig() { return safeJSONParse(localStorage.getItem(STORAGE_KEYS.config), null); }
+      try {
+        // Firebase SDK v9 compat / older style support
+        if (window.firebase.apps && window.firebase.apps.length === 0) {
+          this.app = window.firebase.initializeApp(this.config);
+        } else if (window.firebase.apps && window.firebase.apps.length > 0) {
+          this.app = window.firebase.app();
+        } else {
+          this.app = window.firebase.initializeApp(this.config);
+        }
 
-function setStoredConfig(config) { try { localStorage.setItem(STORAGE_KEYS.config, safeJSONStringify(config, '{}')); return true; } catch (err) { console.error('[KAREEM3_DB] save config failed:', err); return false; } }
+        this.db = window.firebase.firestore ? window.firebase.firestore() : null;
+        this.auth = window.firebase.auth ? window.firebase.auth() : null;
 
-function getBridgeState() { return safeJSONParse(localStorage.getItem(STORAGE_KEYS.bridgeState), { lastMode: 'disabled', lastError: null, lastSyncAt: null, }); }
+        this.ready = true;
+        this.reportStatus(true);
+        this.hookEvents();
+        this.applyRuntimeState();
+        return true;
+      } catch (err) {
+        console.warn("K3 Firebase init failed:", err);
+        this.ready = false;
+        this.reportStatus(false);
+        this.hookEvents();
+        return false;
+      }
+    },
 
-function setBridgeState(patch) { const current = getBridgeState(); const next = { ...current, ...patch }; try { localStorage.setItem(STORAGE_KEYS.bridgeState, safeJSONStringify(next, '{}')); } catch (err) { console.error('[KAREEM3_DB] save bridge state failed:', err); } return next; }
+    reportStatus(isReady) {
+      // Optional support for state manager / health monitor
+      try {
+        if (window.K3_HEALTH && typeof window.K3_HEALTH === "object") {
+          window.K3_HEALTH.firebase = !!isReady;
+        }
 
-function emit(eventName, payload) { state.listeners.forEach((fn) => { try { fn(eventName, payload); } catch (err) { console.error('[KAREEM3_DB] listener error:', err); } }); }
+        if (window.K3_HEALTH_API && typeof window.K3_HEALTH_API.mark === "function" && isReady) {
+          window.K3_HEALTH_API.mark("firebase");
+        }
 
-function onEvent(handler) { if (typeof handler !== 'function') return () => {}; state.listeners.add(handler); return () => state.listeners.delete(handler); }
+        if (window.K3_STATE && typeof window.K3_STATE.update === "function") {
+          window.K3_STATE.update({
+            firebase_connected: !!isReady,
+            last_update: Date.now()
+          });
+        }
 
-function hasFirebaseSDK() { return typeof window !== 'undefined' && typeof window.firebase !== 'undefined'; }
+        if (window.K3Z_STATE && typeof window.K3Z_STATE.update === "function") {
+          window.K3Z_STATE.update({
+            firebase_connected: !!isReady,
+            last_update: Date.now()
+          });
+        }
+      } catch (_) {}
+    },
 
-function getMode() { return state.mode; }
+    applyRuntimeState() {
+      // Push a light sync state once Firebase is ready
+      try {
+        if (window.K3_STATE && typeof window.K3_STATE.update === "function") {
+          window.K3_STATE.update({
+            firebase_connected: this.ready,
+            last_update: Date.now()
+          });
+        }
 
-function isReady() { return state.ready; }
+        if (window.K3Z_STATE && typeof window.K3Z_STATE.update === "function") {
+          window.K3Z_STATE.update({
+            firebase_connected: this.ready,
+            last_update: Date.now()
+          });
+        }
+      } catch (_) {}
+    },
 
-function getStatus() { return { ready: state.ready, mode: state.mode, user: state.user, hasSDK: hasFirebaseSDK(), lastError: state.lastError, }; }
+    hookEvents() {
+      // Hook the event system if present, but keep file safe if it isn't
+      const canListen = window.K3_SYSTEM && typeof window.K3_SYSTEM.on === "function";
+      const canEmit = window.K3_SYSTEM && typeof window.K3_SYSTEM.emit === "function";
 
-function setLocalMode(reason = 'local-fallback') { state.ready = true; state.mode = 'local'; state.lastError = null; setBridgeState({ lastMode: 'local', lastError: null, lastSyncAt: Date.now(), reason }); emit('mode-changed', getStatus()); return getStatus(); }
+      if (!canListen) return;
 
-function setDisabledMode(reason = 'disabled') { state.ready = true; state.mode = 'disabled'; state.user = null; state.lastError = null; setBridgeState({ lastMode: 'disabled', lastError: null, lastSyncAt: Date.now(), reason }); emit('mode-changed', getStatus()); return getStatus(); }
+      try {
+        // Incoming message from main.js or any feature module
+        window.K3_SYSTEM.on("message:send", async (message) => {
+          if (!message) return;
 
-function setFirebaseMode(app, auth, db) { state.ready = true; state.mode = 'firebase'; state.app = app || null; state.auth = auth || null; state.db = db || null; state.lastError = null; setBridgeState({ lastMode: 'firebase', lastError: null, lastSyncAt: Date.now() }); emit('mode-changed', getStatus()); return getStatus(); }
+          const saved = await this.sendMessage(message);
+          if (canEmit) {
+            window.K3_SYSTEM.emit("message:saved", {
+              ok: saved,
+              message
+            });
+          }
+        });
 
-async function tryInitFirebase(config) { if (!config || !config.apiKey || !config.projectId) { throw new Error('Missing Firebase config'); }
+        // Presence hook
+        window.K3_SYSTEM.on("user:online", async (payload) => {
+          await this.setOnlineUser(payload);
+        });
 
-if (!hasFirebaseSDK()) {
-  throw new Error('Firebase SDK not loaded');
-}
+        // Profile visit hook
+        window.K3_SYSTEM.on("profile:visited", async (payload) => {
+          await this.saveProfileVisit(payload);
+        });
+      } catch (err) {
+        console.warn("K3 Firebase event hook failed:", err);
+      }
+    },
 
-if (!window.firebase.apps || !window.firebase.apps.length) {
-  const app = window.firebase.initializeApp(config);
-  const auth = window.firebase.auth ? window.firebase.auth() : null;
-  const db = window.firebase.firestore ? window.firebase.firestore() : null;
-  setFirebaseMode(app, auth, db);
-  return getStatus();
-}
+    async sendMessage(message) {
+      // Fallback mode: store nothing if Firebase is unavailable, but keep app stable
+      if (!this.ready || !this.db) {
+        this.applyLocalBackup("messages", message);
+        return false;
+      }
 
-const app = window.firebase.app();
-const auth = window.firebase.auth ? window.firebase.auth() : null;
-const db = window.firebase.firestore ? window.firebase.firestore() : null;
-setFirebaseMode(app, auth, db);
-return getStatus();
+      try {
+        // Example collection path
+        await this.db.collection("messages").add({
+          ...message,
+          createdAt: window.firebase.firestore.FieldValue.serverTimestamp
+            ? window.firebase.firestore.FieldValue.serverTimestamp()
+            : Date.now()
+        });
+        return true;
+      } catch (err) {
+        console.warn("sendMessage failed:", err);
+        this.applyLocalBackup("messages", message);
+        return false;
+      }
+    },
 
-}
+    async setOnlineUser(payload) {
+      if (!this.ready || !this.db) {
+        this.applyLocalBackup("users_online", payload);
+        return false;
+      }
 
-async function init(options = {}) { if (state.ready) return getStatus();
+      try {
+        const userId = String(payload?.id || payload?.uid || "anonymous");
+        await this.db.collection("users_online").doc(userId).set({
+          ...payload,
+          updatedAt: Date.now()
+        }, { merge: true });
+        return true;
+      } catch (err) {
+        console.warn("setOnlineUser failed:", err);
+        this.applyLocalBackup("users_online", payload);
+        return false;
+      }
+    },
 
-const cfg = options.config || getStoredConfig();
-const preferredMode = options.mode || 'auto';
+    async saveProfileVisit(payload) {
+      if (!this.ready || !this.db) {
+        this.applyLocalBackup("profile_visits", payload);
+        return false;
+      }
 
-try {
-  if (preferredMode === 'disabled') {
-    return setDisabledMode('forced-disabled');
-  }
+      try {
+        await this.db.collection("profile_visits").add({
+          ...payload,
+          createdAt: Date.now()
+        });
+        return true;
+      } catch (err) {
+        console.warn("saveProfileVisit failed:", err);
+        this.applyLocalBackup("profile_visits", payload);
+        return false;
+      }
+    },
 
-  if (preferredMode === 'local') {
-    return setLocalMode('forced-local');
-  }
+    applyLocalBackup(bucket, payload) {
+      // Tiny safe fallback so the project does not break without Firebase
+      try {
+        const key = `K3Z_FALLBACK_${bucket}`;
+        const saved = JSON.parse(localStorage.getItem(key) || "[]");
+        saved.push({
+          payload,
+          at: Date.now()
+        });
+        localStorage.setItem(key, JSON.stringify(saved.slice(-50)));
+      } catch (_) {}
+    },
 
-  if (cfg && hasFirebaseSDK()) {
-    return await tryInitFirebase(cfg);
-  }
+    getStatus() {
+      return {
+        ready: this.ready,
+        hasSdk: this.hasSdk,
+        hasConfig: !!this.config
+      };
+    }
+  };
 
-  return setLocalMode(cfg ? 'sdk-missing' : 'no-config');
-} catch (err) {
-  state.lastError = err instanceof Error ? err.message : String(err);
-  setBridgeState({ lastMode: 'local', lastError: state.lastError, lastSyncAt: Date.now() });
-  console.error('[KAREEM3_DB] init failed, falling back to local mode:', err);
-  return setLocalMode('init-failed');
-}
+  // Auto init if config exists
+  document.addEventListener("DOMContentLoaded", () => {
+    FirebaseAdapter.init(window.K3_FIREBASE_CONFIG || window.firebaseConfig || null);
+  });
 
-}
-
-function ensureLocalStorageArray(key) { return safeJSONParse(localStorage.getItem(key), []); }
-
-function ensureLocalStorageObject(key) { return safeJSONParse(localStorage.getItem(key), {}); }
-
-function writeLocalStorage(key, value, fallback = '{}') { try { localStorage.setItem(key, safeJSONStringify(value, fallback)); return true; } catch (err) { state.lastError = err instanceof Error ? err.message : String(err); console.error('[KAREEM3_DB] write failed:', err); return false; } }
-
-async function readDoc(path) { if (state.mode === 'firebase' && state.db) { const snap = await state.db.doc(path).get(); return snap.exists ? snap.data() : null; } return ensureLocalStorageObject(path); }
-
-async function writeDoc(path, data) { if (state.mode === 'firebase' && state.db) { await state.db.doc(path).set(data, { merge: true }); state.lastError = null; emit('write', { path, data }); return true; }
-
-const ok = writeLocalStorage(path, data, '{}');
-if (ok) emit('write', { path, data });
-return ok;
-
-}
-
-async function addDoc(path, data) { if (state.mode === 'firebase' && state.db) { const ref = await state.db.collection(path).add(data); emit('write', { path, data, id: ref.id }); return ref.id; }
-
-const list = ensureLocalStorageArray(path);
-const id = `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-list.push({ id, ...data });
-writeLocalStorage(path, list, '[]');
-emit('write', { path, data, id });
-return id;
-
-}
-
-async function setUser(user) { state.user = user || null; emit('user-changed', state.user); return state.user; }
-
-async function signIn(email, password) { if (state.mode !== 'firebase' || !state.auth) { state.lastError = 'Firebase auth unavailable'; return null; }
-
-const result = await state.auth.signInWithEmailAndPassword(email, password);
-await setUser(result.user || null);
-return result.user || null;
-
-}
-
-async function signOut() { if (state.mode === 'firebase' && state.auth) { await state.auth.signOut(); } await setUser(null); return true; }
-
-function getConfig() { return getStoredConfig(); }
-
-function saveConfig(config) { return setStoredConfig(config); }
-
-function clearError() { state.lastError = null; setBridgeState({ lastError: null }); }
-
-async function ping() { const status = getStatus(); if (status.mode === 'firebase' && state.db) { try { await state.db.collection('health').limit(1).get(); clearError(); return { ok: true, mode: status.mode }; } catch (err) { state.lastError = err instanceof Error ? err.message : String(err); setBridgeState({ lastError: state.lastError, lastSyncAt: Date.now() }); return { ok: false, mode: status.mode, error: state.lastError }; } }
-
-return { ok: true, mode: status.mode };
-
-}
-
-const api = { init, getStatus, getMode, isReady, getConfig, saveConfig, onEvent, ping, clearError, setLocalMode, setDisabledMode, setFirebaseMode, readDoc, writeDoc, addDoc, signIn, signOut, setUser, };
-
-window.KAREEM3_DB = api;
-
-document.addEventListener('DOMContentLoaded', () => { const config = getStoredConfig(); if (config && !state.ready) { init({ mode: 'auto', config }).catch((err) => { state.lastError = err instanceof Error ? err.message : String(err); setDisabledMode('init-catch'); }); } else { setLocalMode('boot-local'); } }); })();
+  // Public API
+  window.K3_FIREBASE = FirebaseAdapter;
+})();
