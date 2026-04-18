@@ -2,85 +2,83 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>شات نار</title>
 
   <!-- خط عربي شائع -->
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;700&display=swap" rel="stylesheet">
 
+  <!-- أيقونات -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+
   <!-- ملف الأنماط -->
   <link rel="stylesheet" href="style.css">
-
-  <!-- أيقونات بسيطة (اختياري) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="" crossorigin="anonymous" />
 </head>
 <body>
   <div id="app" class="app-root">
 
-    <!-- هيدر مركزي -->
+    <!-- هيدر مركزي مع أيقونات القوائم -->
     <header class="app-header">
-      <!-- أيقونة القوائم اليسرى (في RTL تظهر على اليسار بصريًا) -->
+      <!-- أيقونة القائمة اليسرى: الرسائل الخاصة -->
       <div class="header-left">
         <button id="privateListBtn" class="icon-btn" aria-label="قائمة الرسائل الخاصة">
-          <i class="fa-solid fa-message"></i>
+          <i class="fa-solid fa-inbox"></i>
         </button>
       </div>
 
-      <!-- العنوان في المنتصف -->
+      <!-- العنوان في المنتصف (قابل للضغط لمنع السحب للتحديث) -->
       <div class="header-center">
-        <h1 class="brand">شات نار</h1>
+        <button id="brandBtn" class="brand-btn" aria-label="شات نار">
+          <h1 class="brand">شات نار</h1>
+        </button>
       </div>
 
-      <!-- بروفايل على اليمين -->
+      <!-- أيقونة القائمة اليمنى: قائمة البروفايل / القائمة الرئيسية -->
       <div class="header-right">
-        <div class="profile-dropdown">
-          <button id="profileBtn" class="profile-btn" aria-haspopup="true" aria-expanded="false">
-            <img src="assets/avatar-demo.png" alt="صورة الملف" class="avatar" />
-          </button>
-
-          <!-- قائمة البروفايل (تفتح فوق الهيدر بشكل أنيق) -->
-          <div id="profileMenu" class="dropdown-menu dropdown-right" role="menu" aria-hidden="true">
-            <div class="profile-card">
-              <img src="assets/avatar-demo.png" alt="صورة الملف" class="avatar-lg" />
-              <div class="profile-info">
-                <div class="profile-name" id="profileName">مستخدم تجريبي</div>
-                <div class="profile-bio" id="profileBio">نبذة قصيرة عن المستخدم</div>
-              </div>
-            </div>
-            <hr />
-            <ul class="profile-actions">
-              <li><button class="menu-item" id="appSettingsBtn"><i class="fa-solid fa-gear"></i> إعداد التطبيق</button></li>
-              <li><button class="menu-item" id="viewProfileBtn"><i class="fa-solid fa-eye"></i> عرض ملفك الآن</button></li>
-              <li><button class="menu-item" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج</button></li>
-            </ul>
-          </div>
-        </div>
+        <button id="menuBtn" class="icon-btn" aria-label="قائمة المستخدم">
+          <i class="fa-solid fa-bars"></i>
+        </button>
       </div>
     </header>
 
-    <!-- قائمة الرسائل الخاصة صغيرة فوق الهيدر (dropdown) -->
-    <div id="privateListDropdown" class="dropdown-menu dropdown-top dropdown-private" aria-hidden="true">
-      <div class="dropdown-header">
+    <!-- قائمة الرسائل الخاصة (تفتح من اليسار على شكل drawer/dropdown) -->
+    <aside id="privateListDrawer" class="drawer drawer-left" aria-hidden="true">
+      <div class="drawer-header">
         <strong>الرسائل الخاصة</strong>
+        <button id="closePrivateDrawer" class="icon-btn" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <ul id="privateThreadsList" class="threads-list">
-        <!-- عناصر المحادثات الخاصة ستُملأ ديناميكياً -->
-        <!-- مثال عنصر -->
-        <!--
-        <li class="thread-item">
-          <div class="thread-meta">
-            <div class="thread-name">أحمد</div>
-            <div class="thread-time">12:34</div>
-          </div>
-          <div class="thread-last">آخر رسالة قصيرة...</div>
-          <div class="thread-unread">2</div>
-        </li>
-        -->
-      </ul>
-      <div class="dropdown-footer">
+      <div class="drawer-body">
+        <ul id="privateThreadsList" class="threads-list">
+          <!-- عناصر المحادثات الخاصة ستُملأ ديناميكياً -->
+        </ul>
+      </div>
+      <div class="drawer-footer">
         <button id="openAllThreads" class="link-btn">عرض كل المحادثات</button>
       </div>
-    </div>
+    </aside>
+
+    <!-- قائمة البروفايل / القائمة الرئيسية (تفتح من اليمين كـ drawer) -->
+    <aside id="profileDrawer" class="drawer drawer-right" aria-hidden="true">
+      <div class="drawer-header">
+        <div class="profile-card">
+          <img src="assets/avatar-demo.png" alt="صورة الملف" class="avatar-lg" />
+          <div class="profile-info">
+            <div id="profileName" class="profile-name">مستخدم تجريبي</div>
+            <div id="profileBio" class="profile-bio">نبذة قصيرة عن المستخدم</div>
+          </div>
+        </div>
+        <button id="closeProfileDrawer" class="icon-btn" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="drawer-body">
+        <ul class="profile-actions">
+          <li><button id="editProfileBtn" class="menu-item"><i class="fa-solid fa-pen"></i> تعديل الملف</button></li>
+          <li><button id="appSettingsBtn" class="menu-item"><i class="fa-solid fa-gear"></i> إعداد التطبيق</button></li>
+          <li><button id="viewProfileBtn" class="menu-item"><i class="fa-solid fa-eye"></i> عرض ملفك الآن</button></li>
+          <li><button id="logoutBtn" class="menu-item"><i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج</button></li>
+        </ul>
+      </div>
+    </aside>
 
     <!-- شريط البحث تحت الهيدر -->
     <div class="search-bar">
@@ -88,10 +86,10 @@
       <button id="searchClear" class="icon-btn" aria-label="مسح البحث"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
-    <!-- المحتوى الرئيسي: عمودان -->
+    <!-- المحتوى الرئيسي: mobile-first ترتيب — المتصلون أولاً ثم الشات العام -->
     <main class="main-grid">
 
-      <!-- بلوك المستخدمين المتصلين الآن -->
+      <!-- بلوك المستخدمين المتصلين الآن (يظهر أولاً على الموبايل) -->
       <aside class="panel users-panel" aria-label="المستخدمون المتصلون">
         <div class="panel-header">
           <h2>المتصلون الآن</h2>
@@ -99,20 +97,10 @@
         </div>
         <ul id="onlineUsersList" class="users-list">
           <!-- عناصر المستخدمين المتصلين ستُملأ ديناميكياً -->
-          <!-- مثال عنصر -->
-          <!--
-          <li class="user-item">
-            <div class="user-avatar"><img src="assets/avatar-1.png" alt=""/></div>
-            <div class="user-meta">
-              <div class="user-name">سارة</div>
-              <div class="user-status">متصل</div>
-            </div>
-          </li>
-          -->
         </ul>
       </aside>
 
-      <!-- بلوك الشات العام -->
+      <!-- بلوك الشات العام تحت المتصلين في العرض الضيق -->
       <section class="panel chat-panel" aria-label="الشات العام">
         <div class="chat-header">
           <h2>الشات العام</h2>
@@ -121,20 +109,12 @@
 
         <ul id="publicMessages" class="messages-list" aria-live="polite">
           <!-- رسائل الشات العام ستُملأ ديناميكياً -->
-          <!-- مثال رسالة -->
-          <!--
-          <li class="message message-other">
-            <div class="msg-meta"><span class="msg-sender">أحمد</span> <span class="msg-time">12:30</span></div>
-            <div class="msg-body">مرحبا بالجميع!</div>
-            <div class="msg-status"><i class="fa-solid fa-check-double seen"></i></div>
-          </li>
-          -->
         </ul>
 
-        <!-- نموذج إرسال رسالة -->
-        <form id="publicMessageForm" class="message-form" autocomplete="off">
+        <!-- نموذج إرسال رسالة: زر من نوع button لمنع submit الافتراضي -->
+        <form id="publicMessageForm" class="message-form" autocomplete="off" onsubmit="return false;">
           <input id="publicMessageInput" type="text" placeholder="اكتب رسالة في الشات العام..." aria-label="اكتب رسالة" maxlength="2000" />
-          <button type="submit" class="send-btn"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
+          <button id="sendPublicBtn" type="button" class="send-btn" aria-label="إرسال"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
         </form>
       </section>
 
@@ -143,10 +123,21 @@
     <!-- إشعار بسيط أسفل الصفحة (لأخطاء أو تأكيدات) -->
     <div id="toast" class="toast" aria-live="assertive" aria-atomic="true" hidden></div>
 
+    <!-- مؤشر تحديث مخصص لمنع pull-to-refresh الافتراضي -->
+    <div id="pullIndicator" class="pull-indicator" aria-hidden="true">
+      <i class="fa-solid fa-arrows-rotate"></i> تحديث
+    </div>
+
   </div>
 
-  <!-- ربط ملفات الجافاسكربت -->
-  <script type="module" src="firebase.js"></script>
-  <script type="module" src="main.js"></script>
+  <!-- ملاحظة مهمة:
+       - firebase.js يجب أن يحتوي تهيئة Firebase (firebaseConfig) وتصدير auth, db, onAuthStateChanged, ensureUserProfile, setUserOffline.
+       - تأكد أن المسارات صحيحة: ./firebase.js ثم ./main.js
+       - كلا الملفين يجب أن يكونا type="module" لتمرير الاستيراد/تصدير بشكل صحيح.
+  -->
+
+  <!-- تحميل سكربتات الموديول بالترتيب الصحيح -->
+  <script type="module" src="./firebase.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
