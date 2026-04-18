@@ -9,10 +9,10 @@
   };
 
   const CONFIG = {
-    SESSION_TTL_MS: 24 * 60 * 60 * 1000,
-    ONLINE_WINDOW_MS: 15 * 60 * 1000,
-    FEATURED_WINDOW_MS: 2 * 60 * 60 * 1000,
-    MESSAGE_CAP: 70,
+    SESSION_TTL_MS: 24 * 60 * 60 * 1000,      // 24 ساعة
+    ONLINE_WINDOW_MS: 15 * 60 * 1000,         // 15 دقيقة
+    FEATURED_WINDOW_MS: 2 * 60 * 60 * 1000,   // ساعتين
+    PUBLIC_MESSAGE_CAP: 70,
     NOTIFICATION_CAP: 20,
     TOAST_MS: 2400,
   };
@@ -25,12 +25,10 @@
     selectedPrivatePeerId: null,
     selectedUserId: null,
     pendingAction: null,
-    view: "home",
     monitorPanelEl: null,
     toastHostEl: null,
     activitySaveTimer: null,
     intervalTimer: null,
-    searchQuery: "",
   };
 
   const els = {};
@@ -88,6 +86,18 @@
       return new Date(ts).toLocaleTimeString("ar-EG", {
         hour: "2-digit",
         minute: "2-digit",
+      });
+    } catch {
+      return "";
+    }
+  }
+
+  function formatDate(ts) {
+    try {
+      return new Date(ts).toLocaleDateString("ar-EG", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
       });
     } catch {
       return "";
@@ -194,6 +204,7 @@
     el.style.backgroundSize = "cover";
     el.style.backgroundPosition = "center";
     el.style.backgroundColor = colorFromText(account?.username || fallbackLabel);
+    el.style.color = "";
 
     if (avatarUrl) {
       el.style.backgroundImage = `url("${avatarUrl}")`;
@@ -213,7 +224,6 @@
       localStorage.setItem(KEYS.accounts, safeJSONStringify(state.accounts, "[]"));
       localStorage.setItem(KEYS.publicMessages, safeJSONStringify(state.publicMessages, "[]"));
       localStorage.setItem(KEYS.privateThreads, safeJSONStringify(state.privateThreads, "{}"));
-
       if (state.currentAccountId) {
         const acc = getCurrentAccount();
         if (acc) {
@@ -226,9 +236,9 @@
             }, "{}")
           );
         }
+      } else {
+        localStorage.removeItem(KEYS.currentSession);
       }
-      // لا نمسح currentSession هنا
-      // المسح فقط عند logout أو انتهاء الجلسة
     } catch (err) {
       showToast("تعذر حفظ البيانات. تأكد أن مساحة التخزين متاحة.");
       console.error(err);
@@ -237,8 +247,8 @@
 
   function prunePublicMessages() {
     if (!Array.isArray(state.publicMessages)) state.publicMessages = [];
-    if (state.publicMessages.length > CONFIG.MESSAGE_CAP) {
-      state.publicMessages = state.publicMessages.slice(-CONFIG.MESSAGE_CAP);
+    if (state.publicMessages.length > CONFIG.PUBLIC_MESSAGE_CAP) {
+      state.publicMessages = state.publicMessages.slice(-CONFIG.PUBLIC_MESSAGE_CAP);
     }
   }
 
@@ -251,7 +261,9 @@
   }
 
   function normalizeThread(thread) {
-    if (!thread || typeof thread !== "object") return null;
+    if (!thread || typeof thread !== "object") {
+      return null;
+    }
     const messages = Array.isArray(thread.messages) ? thread.messages : [];
     return {
       participants: Array.isArray(thread.participants) ? thread.participants : [],
@@ -266,8 +278,8 @@
       const t = normalizeThread(thread);
       if (!t || !Array.isArray(t.participants) || t.participants.length < 2) return;
       t.messages = Array.isArray(t.messages) ? t.messages : [];
-      if (t.messages.length > CONFIG.MESSAGE_CAP) {
-        t.messages = t.messages.slice(-CONFIG.MESSAGE_CAP);
+      if (t.messages.length > CONFIG.PUBLIC_MESSAGE_CAP) {
+        t.messages = t.messages.slice(-CONFIG.PUBLIC_MESSAGE_CAP);
       }
       cleaned[key] = t;
     });
@@ -330,13 +342,15 @@
     if (!acc) {
       localStorage.removeItem(KEYS.currentSession);
       state.currentAccountId = null;
+      writeStorage();
       return;
     }
 
     if (isSessionExpired(session)) {
-      localStorage.removeItem(KEYS.currentSession);
-      state.currentAccountId = null;
+      commitCurrentSession(true);
       showToast("انتهت الجلسة، سجل دخولك مرة ثانية.");
+      state.currentAccountId = null;
+      renderAll();
       return;
     }
 
@@ -344,6 +358,7 @@
     acc.sessionStartedAt = Number(session.startedAt || now());
     acc.sessionExpiresAt = Number(session.expiresAt || (now() + CONFIG.SESSION_TTL_MS));
     acc.lastSeenAt = acc.lastSeenAt || now();
+    writeStorage();
   }
 
   function createAccount(username, password) {
@@ -351,7 +366,9 @@
     const pass = String(password || "").trim();
     const existing = getAccountByUsername(name);
 
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
 
     const account = {
       id: makeId("acc"),
@@ -386,6 +403,7 @@
     account.lastSeenAt = startedAt;
     account.sessionStartedAt = startedAt;
     account.sessionExpiresAt = startedAt + CONFIG.SESSION_TTL_MS;
+
     state.currentAccountId = account.id;
 
     localStorage.setItem(
@@ -403,8 +421,14 @@
 
   function commitCurrentSession(force = false) {
     const acc = getCurrentAccount();
+    if (!acc) {
+      localStorage.removeItem(KEYS.currentSession);
+      state.currentAccountId = null;
+      return;
+    }
+
     const session = getCurrentSession();
-    if (!acc || !session) return;
+    if (!session) return;
 
     const duration = Math.max(0, now() - Number(session.startedAt || now()));
     if (duration > 0 || force) {
@@ -421,7 +445,8 @@
   }
 
   function logoutCurrentAccount(showMessage = true) {
-    if (!getCurrentAccount()) {
+    const acc = getCurrentAccount();
+    if (!acc) {
       state.currentAccountId = null;
       localStorage.removeItem(KEYS.currentSession);
       renderAll();
@@ -443,7 +468,6 @@
     const acc = getCurrentAccount();
     const session = getCurrentSession();
     if (!acc || !session || session.accountId !== acc.id) return;
-
     if (isSessionExpired(session)) {
       logoutCurrentAccount(false);
       showToast("انتهت الجلسة، سجل دخولك مرة ثانية.");
@@ -469,6 +493,10 @@
     return true;
   }
 
+  function isGuest() {
+    return !getCurrentAccount();
+  }
+
   function ensureAuthenticated(action) {
     if (canUseCurrentSession()) return true;
     state.pendingAction = action || null;
@@ -481,20 +509,19 @@
     const overlay = els.authOverlay;
     if (!overlay) return;
 
-    const subtitle = overlay.querySelector(".overlay-subtitle");
     const title = els.authTitle;
-
+    const subtitle = overlay.querySelector(".overlay-subtitle");
     if (title) title.textContent = "تسجيل الدخول / إنشاء حساب";
 
     if (subtitle) {
       subtitle.textContent =
-        action?.type === "send-public"
+        action === "send-public"
           ? "لازم تسجّل الدخول قبل إرسال رسالة في الشات العام."
-          : action?.type === "send-private"
+          : action === "send-private"
             ? "لازم تسجّل الدخول قبل إرسال رسالة خاصة."
-            : action?.type === "open-profile"
+            : action === "open-profile"
               ? "لازم تسجّل الدخول لفتح ملفك الشخصي."
-              : action?.type === "open-private"
+              : action === "open-private"
                 ? "لازم تسجّل الدخول عشان تفتح شات خاص."
                 : "اكتب اسمك وكلمة المرور عشان تكمل التفاعل.";
     }
@@ -502,7 +529,9 @@
     overlay.classList.remove("is-hidden");
     overlay.setAttribute("aria-hidden", "false");
 
-    setTimeout(() => els.authName?.focus(), 20);
+    if (els.authName) {
+      setTimeout(() => els.authName.focus(), 20);
+    }
   }
 
   function closeAuthOverlay() {
@@ -511,6 +540,45 @@
     overlay.classList.add("is-hidden");
     overlay.setAttribute("aria-hidden", "true");
     state.pendingAction = null;
+  }
+
+  function resolvePendingAction(account) {
+    const action = state.pendingAction;
+    state.pendingAction = null;
+
+    if (!action) return;
+
+    if (action.type === "send-public") {
+      sendPublicMessage(action.text, true);
+      return;
+    }
+
+    if (action.type === "send-private") {
+      openPrivateChat(action.peerId, true);
+      sendPrivateMessage(action.peerId, action.text, true);
+      return;
+    }
+
+    if (action.type === "open-profile") {
+      openSelfProfile();
+      return;
+    }
+
+    if (action.type === "open-private") {
+      openPrivateChat(action.peerId, true);
+      return;
+    }
+
+    if (action.type === "open-monitor") {
+      openMonitorPanel();
+      return;
+    }
+
+    if (action.type === "open-user") {
+      if (action.userId) {
+        openUserProfileById(action.userId);
+      }
+    }
   }
 
   function showToast(message) {
@@ -526,12 +594,18 @@
     toast.textContent = message;
     state.toastHostEl.appendChild(toast);
 
-    requestAnimationFrame(() => toast.classList.add("is-visible"));
+    requestAnimationFrame(() => {
+      toast.classList.add("is-visible");
+    });
 
     setTimeout(() => {
       toast.classList.remove("is-visible");
       setTimeout(() => toast.remove(), 220);
     }, CONFIG.TOAST_MS);
+  }
+
+  function getCurrentPublicMessages() {
+    return Array.isArray(state.publicMessages) ? state.publicMessages : [];
   }
 
   function getThreadKey(a, b) {
@@ -625,8 +699,8 @@
     thread.messages = Array.isArray(thread.messages) ? thread.messages : [];
     thread.messages.push(message);
 
-    if (thread.messages.length > CONFIG.MESSAGE_CAP) {
-      thread.messages = thread.messages.slice(-CONFIG.MESSAGE_CAP);
+    if (thread.messages.length > CONFIG.PUBLIC_MESSAGE_CAP) {
+      thread.messages = thread.messages.slice(-CONFIG.PUBLIC_MESSAGE_CAP);
     }
 
     thread.updatedAt = now();
@@ -681,6 +755,12 @@
     return [...acc.notifications].sort((a, b) => Number(b.at) - Number(a.at));
   }
 
+  function openHome() {
+    state.selectedUserId = null;
+    state.selectedPrivatePeerId = state.selectedPrivatePeerId || null;
+    setView("home");
+  }
+
   function setView(viewName) {
     state.view = viewName;
 
@@ -704,14 +784,14 @@
 
     if (viewName === "home") {
       renderHomeView();
-      els.publicMessageInput?.focus?.();
+      if (els.publicMessageInput) els.publicMessageInput.focus?.();
     } else if (viewName === "profile") {
       renderProfileView();
-      els.profileName?.focus?.();
+      if (els.profileName) els.profileName.focus?.();
     } else if (viewName === "private") {
       renderPrivateChatsList();
       renderPrivateConversation();
-      els.privateMessageInput?.focus?.();
+      if (els.privateMessageInput) els.privateMessageInput.focus?.();
     } else if (viewName === "user") {
       renderUserView();
     }
@@ -731,8 +811,11 @@
 
   function toggleDrawer() {
     if (!els.menuDrawer) return;
-    if (els.menuDrawer.classList.contains("is-hidden")) openDrawer();
-    else closeDrawer();
+    if (els.menuDrawer.classList.contains("is-hidden")) {
+      openDrawer();
+    } else {
+      closeDrawer();
+    }
   }
 
   function openMonitorPanel() {
@@ -743,7 +826,9 @@
     openDrawer();
     markCurrentNotificationsRead();
     renderMonitorPanel();
-    state.monitorPanelEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (state.monitorPanelEl) {
+      state.monitorPanelEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   function openSelfProfile() {
@@ -764,21 +849,18 @@
     }
 
     const current = getCurrentAccount();
+    const viewerLabel = current ? getDisplayName(current) : "زائر";
+
     if (current && current.id === target.id) {
       openSelfProfile();
       return;
     }
 
     state.selectedUserId = target.id;
-    const viewerLabel = current ? getDisplayName(current) : "زائر";
     notifyProfileViewed(target.id, viewerLabel, current?.id || null);
     setView("user");
     renderUserView();
     renderMonitorPanel();
-  }
-
-  function openAccountProfileById(userId) {
-    openUserProfileById(userId);
   }
 
   function openPrivateChat(peerId, silent = false) {
@@ -791,9 +873,11 @@
     state.selectedPrivatePeerId = peer.id;
     state.selectedUserId = null;
     setView("private");
-    renderPrivateChatsList();
     renderPrivateConversation();
-    setTimeout(() => els.privateMessageInput?.focus?.(), 20);
+    renderPrivateChatsList();
+    if (els.privateMessageInput) {
+      setTimeout(() => els.privateMessageInput.focus?.(), 20);
+    }
   }
 
   function sendPublicMessage(text, silent = false) {
@@ -888,11 +972,21 @@
         ? "اكتب رسالتك في الشات العام..."
         : "سجّل دخولك أولًا لو عايز تكتب";
     }
+
+    if (els.publicSendBtn) {
+      els.publicSendBtn.textContent = "إرسال";
+    }
+
+    if (els.privateSendBtn) {
+      els.privateSendBtn.textContent = "إرسال";
+    }
   }
 
-  function buildMessageElement(message) {
+  function buildMessageElement(message, context = "public") {
     const sender = getAccountById(message.senderId);
-    const senderName = normalizeText(sender ? getDisplayName(sender) : message.senderLabel || "مستخدم");
+    const senderName = normalizeText(
+      sender ? getDisplayName(sender) : message.senderLabel || "مستخدم"
+    );
 
     const article = document.createElement("article");
     article.className = "message-item";
@@ -909,7 +1003,9 @@
     setAvatar(avatar, sender, senderName ? senderName[0] : "؟");
     avatar.title = `فتح ملف ${senderName}`;
     avatar.addEventListener("click", () => {
-      if (message.senderId) openAccountProfileById(message.senderId);
+      if (message.senderId) {
+        openAccountProfileById(message.senderId);
+      }
     });
 
     const metaWrap = document.createElement("div");
@@ -920,7 +1016,9 @@
     senderBtn.className = "message-sender";
     senderBtn.textContent = senderName;
     senderBtn.addEventListener("click", () => {
-      if (message.senderId) openAccountProfileById(message.senderId);
+      if (message.senderId) {
+        openAccountProfileById(message.senderId);
+      }
     });
 
     const time = document.createElement("time");
@@ -948,7 +1046,7 @@
     if (!els.publicMessages) return;
     els.publicMessages.innerHTML = "";
 
-    const messages = Array.isArray(state.publicMessages) ? state.publicMessages : [];
+    const messages = getCurrentPublicMessages();
     if (!messages.length) {
       const empty = document.createElement("div");
       empty.className = "messages-placeholder";
@@ -958,7 +1056,7 @@
     }
 
     messages.forEach((message) => {
-      els.publicMessages.appendChild(buildMessageElement(message));
+      els.publicMessages.appendChild(buildMessageElement(message, "public"));
     });
 
     els.publicMessages.scrollTop = els.publicMessages.scrollHeight;
@@ -1013,7 +1111,9 @@
       row.appendChild(info);
       row.appendChild(badge);
 
-      row.addEventListener("click", () => openAccountProfileById(acc.id));
+      row.addEventListener("click", () => {
+        openAccountProfileById(acc.id);
+      });
 
       els.onlineUsersList.appendChild(row);
     });
@@ -1073,7 +1173,9 @@
       row.appendChild(avatar);
       row.appendChild(info);
 
-      row.addEventListener("click", () => openAccountProfileById(acc.id));
+      row.addEventListener("click", () => {
+        openAccountProfileById(acc.id);
+      });
 
       els.featuredUsersList.appendChild(row);
     });
@@ -1108,7 +1210,9 @@
     }
 
     if (els.profileOnlineState) {
-      els.profileOnlineState.textContent = isCurrentAccountOnline() ? "متصل الآن" : "غير نشط";
+      els.profileOnlineState.textContent = isCurrentAccountOnline()
+        ? "متصل الآن"
+        : "غير نشط";
     }
 
     if (els.profileLastSeen) {
@@ -1177,7 +1281,9 @@
       btn.appendChild(time);
 
       btn.addEventListener("click", () => {
-        if (item.peerId) openPrivateChat(item.peerId, true);
+        if (item.peerId) {
+          openPrivateChat(item.peerId, true);
+        }
       });
 
       els.privateChatsList.appendChild(btn);
@@ -1200,7 +1306,6 @@
       placeholder.textContent = "سجّل دخولك أولًا.";
       els.privateMessages.appendChild(placeholder);
       if (els.privateMessageInput) els.privateMessageInput.placeholder = "سجّل دخولك أولًا";
-      if (els.privateSendBtn) els.privateSendBtn.disabled = true;
       return;
     }
 
@@ -1220,7 +1325,7 @@
 
     els.privateChatTitle.textContent = getDisplayName(peer);
     els.privateChatMeta.textContent = peer.lastSeenAt
-      ? `آخر ظهور ${timeAgo(peer.lastSeenAt)}`
+      ? `${isCurrentAccountOnline() && state.selectedPrivatePeerId === peer.id ? "متاح" : "آخر ظهور "} ${timeAgo(peer.lastSeenAt)}`
       : "مستخدم جديد";
 
     setAvatar(els.privateChatAvatar, peer, getAvatarInitial(peer));
@@ -1242,7 +1347,7 @@
     }
 
     messages.forEach((message) => {
-      els.privateMessages.appendChild(buildMessageElement(message));
+      els.privateMessages.appendChild(buildMessageElement(message, "private"));
     });
 
     els.privateMessages.scrollTop = els.privateMessages.scrollHeight;
@@ -1251,7 +1356,7 @@
   function renderUserView() {
     const target = getAccountById(state.selectedUserId);
     if (!target) {
-      if (els.userViewTitle) els.userViewTitle.textContent = "ملف المستخدم";
+      els.userViewTitle.textContent = "ملف المستخدم";
       if (els.userViewName) els.userViewName.textContent = "اسم المستخدم";
       if (els.userViewStatus) els.userViewStatus.textContent = "المستخدم غير موجود";
       if (els.userViewBio) els.userViewBio.textContent = "لا توجد بيانات.";
@@ -1259,7 +1364,7 @@
       return;
     }
 
-    if (els.userViewTitle) els.userViewTitle.textContent = `ملف ${getDisplayName(target)}`;
+    els.userViewTitle.textContent = `ملف ${getDisplayName(target)}`;
     if (els.userViewName) els.userViewName.textContent = getDisplayName(target);
     if (els.userViewAge) els.userViewAge.textContent = target.profile?.age || "—";
     if (els.userViewGender) els.userViewGender.textContent = target.profile?.gender || "—";
@@ -1427,10 +1532,17 @@
       item.appendChild(avatar);
       item.appendChild(info);
 
-      item.addEventListener("click", () => openAccountProfileById(acc.id));
+      item.addEventListener("click", () => {
+        openAccountProfileById(acc.id);
+      });
 
       els.userSearchResults.appendChild(item);
     });
+  }
+
+  function renderProfileMonitorIfNeeded() {
+    if (!state.monitorPanelEl) return;
+    renderMonitorPanel();
   }
 
   function renderAll() {
@@ -1442,11 +1554,6 @@
     renderUserView();
     renderMonitorPanel();
     renderUserSearchResults();
-  }
-
-  function openHome() {
-    state.selectedUserId = null;
-    setView("home");
   }
 
   function handleAuthSubmit(event) {
@@ -1473,44 +1580,9 @@
 
     loginAccount(account);
     closeAuthOverlay();
-    resolvePendingAction();
+    renderShellState();
+    resolvePendingAction(account);
     showToast(`أهلًا ${getDisplayName(account)}.`);
-  }
-
-  function resolvePendingAction() {
-    const action = state.pendingAction;
-    state.pendingAction = null;
-    if (!action) return;
-
-    if (action.type === "send-public") {
-      sendPublicMessage(action.text, true);
-      return;
-    }
-
-    if (action.type === "send-private") {
-      openPrivateChat(action.peerId, true);
-      sendPrivateMessage(action.peerId, action.text, true);
-      return;
-    }
-
-    if (action.type === "open-profile") {
-      openSelfProfile();
-      return;
-    }
-
-    if (action.type === "open-private") {
-      openPrivateChat(action.peerId, true);
-      return;
-    }
-
-    if (action.type === "open-monitor") {
-      openMonitorPanel();
-      return;
-    }
-
-    if (action.type === "open-user") {
-      if (action.userId) openUserProfileById(action.userId);
-    }
   }
 
   function handleProfileSave(event) {
@@ -1549,6 +1621,11 @@
     current.profile.bio = newBio;
     current.lastSeenAt = now();
 
+    if (current.id === state.currentAccountId) {
+      current.sessionStartedAt = current.sessionStartedAt || now();
+      current.sessionExpiresAt = current.sessionExpiresAt || (now() + CONFIG.SESSION_TTL_MS);
+    }
+
     writeStorage();
     renderAll();
     showToast("تم حفظ الملف.");
@@ -1579,6 +1656,14 @@
       showToast("تم تحديث الصورة.");
     };
     reader.readAsDataURL(file);
+  }
+
+  function openProfileForCurrentOrLogin() {
+    if (!canUseCurrentSession()) {
+      ensureAuthenticated({ type: "open-profile" });
+      return;
+    }
+    openSelfProfile();
   }
 
   function handlePublicSubmit(event) {
@@ -1630,6 +1715,15 @@
     location.reload();
   }
 
+  function handlePrivateShortcutClick() {
+    if (!canUseCurrentSession()) {
+      openPrivateViewWithoutPeer();
+      return;
+    }
+
+    openPrivateViewWithoutPeer();
+  }
+
   function openPrivateViewWithoutPeer() {
     setView("private");
     renderPrivateChatsList();
@@ -1643,37 +1737,6 @@
     }
   }
 
-  function handlePrivateShortcutClick() {
-    openPrivateViewWithoutPeer();
-  }
-
-  function createMonitorPanel() {
-    if (!els.menuDrawer) return;
-
-    const panel = document.createElement("section");
-    panel.className = "drawer-section monitor-panel";
-    panel.id = "monitorPanel";
-    panel.innerHTML = `
-      <div class="drawer-subhead">
-        <h3 data-monitor-title>منظار ملفك</h3>
-        <span class="tiny-count" data-monitor-count>0</span>
-      </div>
-      <div class="monitor-panel-body">
-        <div class="empty-state empty-state-small" data-monitor-empty>سجّل دخولك عشان يظهر سجل زيارات الملف.</div>
-        <div class="monitor-list" data-monitor-list></div>
-      </div>
-    `;
-
-    const firstSection = els.menuDrawer.querySelector(".drawer-section");
-    if (firstSection) {
-      els.menuDrawer.insertBefore(panel, firstSection);
-    } else {
-      els.menuDrawer.appendChild(panel);
-    }
-
-    state.monitorPanelEl = panel;
-  }
-
   function attachEvents() {
     els.authForm?.addEventListener("submit", handleAuthSubmit);
     els.authCancel?.addEventListener("click", () => {
@@ -1681,7 +1744,10 @@
       showToast("تم إلغاء تسجيل الدخول.");
     });
 
-    els.menuBtn?.addEventListener("click", toggleDrawer);
+    els.menuBtn?.addEventListener("click", () => {
+      toggleDrawer();
+    });
+
     els.appTitleBtn?.addEventListener("click", handleAppTitleClick);
     els.privateShortcutBtn?.addEventListener("click", handlePrivateShortcutClick);
 
@@ -1691,8 +1757,8 @@
 
     els.profileImageInput?.addEventListener("change", handleProfileImagePick);
 
-    els.openMyProfileFromMenu?.addEventListener("click", openSelfProfile);
-    els.drawerProfileBtn?.addEventListener("click", openSelfProfile);
+    els.openMyProfileFromMenu?.addEventListener("click", openProfileForCurrentOrLogin);
+    els.drawerProfileBtn?.addEventListener("click", openProfileForCurrentOrLogin);
     els.drawerMonitorBtn?.addEventListener("click", openMonitorPanel);
     els.profileMonitorBtn?.addEventListener("click", openMonitorPanel);
 
@@ -1708,11 +1774,12 @@
       logoutCurrentAccount(true);
     });
 
-    els.backFromProfileBtn?.addEventListener("click", openHome);
-    els.closeProfileBtn?.addEventListener("click", openHome);
-    els.backFromPrivateBtn?.addEventListener("click", openHome);
-    els.backFromUserViewBtn?.addEventListener("click", openHome);
-    els.closeUserViewBtn?.addEventListener("click", openHome);
+    els.backFromProfileBtn?.addEventListener("click", () => openHome());
+    els.closeProfileBtn?.addEventListener("click", () => openHome());
+
+    els.backFromPrivateBtn?.addEventListener("click", () => openHome());
+    els.backFromUserViewBtn?.addEventListener("click", () => openHome());
+    els.closeUserViewBtn?.addEventListener("click", () => openHome());
 
     els.startPrivateChatBtn?.addEventListener("click", () => {
       const targetId = els.startPrivateChatBtn?.dataset?.targetId;
@@ -1727,7 +1794,17 @@
       openPrivateChat(targetId, true);
     });
 
-    els.userSearchInput?.addEventListener("input", renderUserSearchResults);
+    els.userSearchInput?.addEventListener("input", () => {
+      renderUserSearchResults();
+    });
+
+    els.publicMessageInput?.addEventListener("focus", () => {
+      markActivity();
+    });
+
+    els.privateMessageInput?.addEventListener("focus", () => {
+      markActivity();
+    });
 
     document.addEventListener("click", (event) => {
       const drawer = els.menuDrawer;
@@ -1744,15 +1821,40 @@
       }
     });
 
-    ["pointerdown", "keydown", "touchstart", "scroll", "mousemove"].forEach((type) => {
-      document.addEventListener(
-        type,
-        () => {
-          if (canUseCurrentSession()) markActivity();
-        },
-        { passive: true }
-      );
+    const activityEvents = ["pointerdown", "keydown", "touchstart", "scroll", "mousemove"];
+    activityEvents.forEach((type) => {
+      document.addEventListener(type, () => {
+        if (canUseCurrentSession()) markActivity();
+      }, { passive: true });
     });
+  }
+
+  function createMonitorPanel() {
+    if (!els.menuDrawer) return;
+
+    const panel = document.createElement("section");
+    panel.className = "drawer-section monitor-panel";
+    panel.id = "monitorPanel";
+
+    panel.innerHTML = `
+      <div class="drawer-subhead">
+        <h3 data-monitor-title>منظار ملفك</h3>
+        <span class="tiny-count" data-monitor-count>0</span>
+      </div>
+      <div class="monitor-panel-body">
+        <div class="empty-state empty-state-small" data-monitor-empty>سجّل دخولك عشان يظهر سجل زيارات الملف.</div>
+        <div class="monitor-list" data-monitor-list></div>
+      </div>
+    `;
+
+    const firstSection = els.menuDrawer.querySelector(".drawer-section");
+    if (firstSection && firstSection.parentElement === els.menuDrawer) {
+      els.menuDrawer.insertBefore(panel, firstSection);
+    } else {
+      els.menuDrawer.appendChild(panel);
+    }
+
+    state.monitorPanelEl = panel;
   }
 
   function setupIntervals() {
@@ -1800,6 +1902,7 @@
     els.authForm = $("authForm");
     els.authName = $("authName");
     els.authPassword = $("authPassword");
+    els.authSubmit = $("authSubmit");
     els.authCancel = $("authCancel");
 
     els.app = $("app");
@@ -1836,6 +1939,7 @@
 
     els.profileView = $("profileView");
     els.backFromProfileBtn = $("backFromProfileBtn");
+    els.profileTitle = $("profileTitle");
     els.profileForm = $("profileForm");
     els.profileAvatarPreview = $("profileAvatarPreview");
     els.profileImageInput = $("profileImageInput");
@@ -1847,10 +1951,12 @@
     els.profileGender = $("profileGender");
     els.profileNationality = $("profileNationality");
     els.profileBio = $("profileBio");
+    els.saveProfileBtn = $("saveProfileBtn");
     els.closeProfileBtn = $("closeProfileBtn");
 
     els.privateView = $("privateView");
     els.backFromPrivateBtn = $("backFromPrivateBtn");
+    els.privateTitle = $("privateTitle");
     els.privateChatsEmpty = $("privateChatsEmpty");
     els.privateChatsList = $("privateChatsList");
     els.privateChatAvatar = $("privateChatAvatar");
@@ -1890,6 +1996,27 @@
     if (canUseCurrentSession()) {
       markActivity();
     }
+  }
+
+  function openAccountProfileById(userId) {
+    const target = getAccountById(userId);
+    if (!target) {
+      showToast("المستخدم غير موجود.");
+      return;
+    }
+
+    if (state.currentAccountId && state.currentAccountId === target.id) {
+      openSelfProfile();
+      return;
+    }
+
+    state.selectedUserId = target.id;
+    const current = getCurrentAccount();
+    notifyProfileViewed(target.id, current ? getDisplayName(current) : "زائر", current?.id || null);
+    setView("user");
+    renderUserView();
+    renderMonitorPanel();
+    renderShellState();
   }
 
   window.KAREEM3 = {
