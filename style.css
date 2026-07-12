@@ -785,3 +785,12 @@
     .users-list { grid-template-columns: repeat(3, 1fr); }
     .hero-title { font-size: 42px; }
   }
+/* === FIX: send button sending state === */
+.send-btn.sending {
+  transform: scale(0.92) !important;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2) !important;
+}
+.send-btn.sending::after {
+  opacity: 1;
+  animation: shimmer 1.5s infinite;
+}
