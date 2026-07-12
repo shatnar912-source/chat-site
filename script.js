@@ -517,40 +517,45 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
   updateMessagesBadge();
 
   // === FIX: Event listeners for send button and form ===
-  const chatForm = document.getElementById('chat-form');
   const sendButton = document.getElementById('send-btn');
   const messageInput = document.getElementById('msg-input');
 
-  // Prevent any default form submission
-  if (chatForm) {
-    chatForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-    });
+  // Helper to send message
+  function doSend() {
+    if (window._sendMessage) {
+      sendButton.classList.add('sending');
+      window._sendMessage();
+      setTimeout(function() { sendButton.classList.remove('sending'); }, 300);
+    }
   }
 
-  // Send button click — clean single handler
+  // Send button — click + touch for mobile
   if (sendButton) {
     sendButton.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      if (window._sendMessage) {
-        sendButton.classList.add('sending');
-        window._sendMessage();
-        setTimeout(function() { sendButton.classList.remove('sending'); }, 300);
-      }
+      doSend();
     });
+    sendButton.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      doSend();
+    }, { passive: false });
   }
 
-  // Enter key — use keydown instead of deprecated keypress
+  // Enter key on keyboard (including mobile keyboard "Go"/"Send")
   if (messageInput) {
     messageInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (window._sendMessage) {
-          sendButton.classList.add('sending');
-          window._sendMessage();
-          setTimeout(function() { sendButton.classList.remove('sending'); }, 300);
-        }
+        doSend();
+      }
+    });
+    // Also handle "keyup" for some mobile keyboards
+    messageInput.addEventListener('keyup', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        doSend();
       }
     });
   }
