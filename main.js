@@ -516,30 +516,41 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
   renderUsers();
   updateMessagesBadge();
 
-  // Event listeners for send button and form
+  // === FIX: Event listeners for send button and form ===
   const chatForm = document.getElementById('chat-form');
   const sendButton = document.getElementById('send-btn');
   const messageInput = document.getElementById('msg-input');
 
+  // Prevent any default form submission
   if (chatForm) {
     chatForm.addEventListener('submit', function(e) {
       e.preventDefault();
-      if (window._sendMessage) window._sendMessage();
     });
   }
 
+  // Send button click — clean single handler
   if (sendButton) {
     sendButton.addEventListener('click', function(e) {
       e.preventDefault();
-      if (window._sendMessage) window._sendMessage();
+      e.stopPropagation();
+      if (window._sendMessage) {
+        sendButton.classList.add('sending');
+        window._sendMessage();
+        setTimeout(function() { sendButton.classList.remove('sending'); }, 300);
+      }
     });
   }
 
+  // Enter key — use keydown instead of deprecated keypress
   if (messageInput) {
-    messageInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
+    messageInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (window._sendMessage) window._sendMessage();
+        if (window._sendMessage) {
+          sendButton.classList.add('sending');
+          window._sendMessage();
+          setTimeout(function() { sendButton.classList.remove('sending'); }, 300);
+        }
       }
     });
   }
