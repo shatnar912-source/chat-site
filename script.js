@@ -529,31 +529,33 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
     }
   }
 
-  // Send button — click + touch for mobile
+  // Send button — touchend for mobile tap, click for desktop
   if (sendButton) {
+    // Use touchend on mobile (more reliable than touchstart)
+    sendButton.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      doSend();
+    });
+    // Click for desktop
     sendButton.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
       doSend();
     });
-    sendButton.addEventListener('touchstart', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      doSend();
-    }, { passive: false });
   }
 
-  // Enter key on keyboard (including mobile keyboard "Go"/"Send")
+  // Enter key — handle ALL possible ways mobile keyboards send Enter
   if (messageInput) {
     messageInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      // e.key for modern browsers, e.keyCode for old/mobile
+      if ((e.key === 'Enter' || e.keyCode === 13 || e.which === 13) && !e.shiftKey) {
         e.preventDefault();
         doSend();
       }
     });
-    // Also handle "keyup" for some mobile keyboards
     messageInput.addEventListener('keyup', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if ((e.key === 'Enter' || e.keyCode === 13 || e.which === 13) && !e.shiftKey) {
         e.preventDefault();
         doSend();
       }
