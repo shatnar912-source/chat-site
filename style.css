@@ -794,3 +794,5 @@
   opacity: 1;
   animation: shimmer 1.5s infinite;
 }
+/* Mobile touch fix */
+.send-btn, .msg-input { touch-action: manipulation; }
