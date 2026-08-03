@@ -516,13 +516,24 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
   renderUsers();
   updateMessagesBadge();
 
-const messageInput = document.getElementById('msg-input');
+  // Event listeners for send button (backup for inline handlers)
+  const sendButton = document.getElementById('send-btn');
+  const messageInput = document.getElementById('msg-input');
 
-if (messageInput) {
-  messageInput.addEventListener('keydown', function(e) {
-    if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+  if (sendButton) {
+    sendButton.addEventListener('click', function(e) {
       e.preventDefault();
       if (window._sendMessage) window._sendMessage();
-    }
-  });
-}
+    });
+  }
+
+  if (messageInput) {
+    messageInput.addEventListener('keydown', function(e) {
+      if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+        e.preventDefault();
+        if (window._sendMessage) window._sendMessage();
+      }
+    });
+  }
+
+})();
