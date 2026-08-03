@@ -517,33 +517,23 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
   updateMessagesBadge();
 
   // Event listeners for send button (backup for inline handlers)
- let lastSendAction = 0;
+  const sendButton = document.getElementById('send-btn');
+  const messageInput = document.getElementById('msg-input');
 
-function handleSendButton(e) {
-  if (e) {
-    e.preventDefault();
-    e.stopPropagation();
+  if (sendButton) {
+    sendButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (window._sendMessage) window._sendMessage();
+    });
   }
 
-  const now = Date.now();
-  if (now - lastSendAction < 350) return;
-  lastSendAction = now;
-
-  if (window._sendMessage) window._sendMessage();
-
-  requestAnimationFrame(() => {
-    if (msgInput) {
-      try {
-        msgInput.focus({ preventScroll: true });
-      } catch (_) {
-        msgInput.focus();
+  if (messageInput) {
+    messageInput.addEventListener('keydown', function(e) {
+      if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+        e.preventDefault();
+        if (window._sendMessage) window._sendMessage();
       }
-    }
-  });
-}
+    });
+  }
 
-if (sendBtn) {
-  sendBtn.addEventListener('touchstart', handleSendButton, { passive: false });
-  sendBtn.addEventListener('pointerdown', handleSendButton, { passive: false });
-  sendBtn.addEventListener('click', handleSendButton);
-}
+})();
