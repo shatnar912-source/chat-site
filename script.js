@@ -516,48 +516,22 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
   renderUsers();
   updateMessagesBadge();
 
-  // === FIX: Event listeners for send button and form ===
+  // Event listeners for send button (backup for inline handlers)
   const sendButton = document.getElementById('send-btn');
   const messageInput = document.getElementById('msg-input');
 
-  // Helper to send message
-  function doSend() {
-    if (window._sendMessage) {
-      sendButton.classList.add('sending');
-      window._sendMessage();
-      setTimeout(function() { sendButton.classList.remove('sending'); }, 300);
-    }
-  }
-
-  // Send button — touchend for mobile tap, click for desktop
   if (sendButton) {
-    // Use touchend on mobile (more reliable than touchstart)
-    sendButton.addEventListener('touchend', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      doSend();
-    });
-    // Click for desktop
     sendButton.addEventListener('click', function(e) {
       e.preventDefault();
-      e.stopPropagation();
-      doSend();
+      if (window._sendMessage) window._sendMessage();
     });
   }
 
-  // Enter key — handle ALL possible ways mobile keyboards send Enter
   if (messageInput) {
     messageInput.addEventListener('keydown', function(e) {
-      // e.key for modern browsers, e.keyCode for old/mobile
-      if ((e.key === 'Enter' || e.keyCode === 13 || e.which === 13) && !e.shiftKey) {
+      if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
         e.preventDefault();
-        doSend();
-      }
-    });
-    messageInput.addEventListener('keyup', function(e) {
-      if ((e.key === 'Enter' || e.keyCode === 13 || e.which === 13) && !e.shiftKey) {
-        e.preventDefault();
-        doSend();
+        if (window._sendMessage) window._sendMessage();
       }
     });
   }
