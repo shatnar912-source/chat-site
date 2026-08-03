@@ -231,7 +231,7 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
           <div class="empty-desc">جرب بحث مختلف أو انتظر حتى ينضم مستخدمون جدد للدردشة</div>
         </div>
       `;
-      onlineCount.textContent = '0';
+       if (onlineCount) onlineCount.textContent = '0';
       return;
     }
 
@@ -278,7 +278,7 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
       usersList.appendChild(card);
     });
 
-    onlineCount.textContent = filtered.length;
+     if (onlineCount) onlineCount.textContent = filtered.length;
   };
 
   window._openChat = function(user) {
@@ -381,7 +381,7 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
     });
     currentChatUser.msgCount++;
     totalChats++;
-    statChats.textContent = totalChats;
+     if (statChats) statChats.textContent = totalChats;
     msgInput.value = '';
     renderMessages();
 
@@ -401,7 +401,7 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
           });
           currentChatUser.msgCount++;
           totalChats++;
-          statChats.textContent = totalChats;
+           if (statChats) statChats.textContent = totalChats;
           renderMessages();
           showToast('رسالة جديدة من ' + currentChatUser.name);
         }
@@ -483,7 +483,7 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
           });
         });
 
-        onlineCount.textContent = users.filter(u => u.name.includes(filter)).length;
+         if (onlineCount) onlineCount.textContent = users.filter(u => u.name.includes(filter)).length;
       }
 
       showToast(name + ' انضم للدردشة!');
@@ -509,31 +509,11 @@ function updateProfileName(value) { if(window._updateProfileName) window._update
         chatStatus.style.color = '#ef4444';
       }
 
-      onlineCount.textContent = users.filter(u => u.name.includes(searchInput.value)).length;
+       if (onlineCount) onlineCount.textContent = users.filter(u => u.name.includes(searchInput.value)).length;
     }
   }, 5000);
 
   renderUsers();
   updateMessagesBadge();
-
-  // Event listeners for send button (backup for inline handlers)
-  const sendButton = document.getElementById('send-btn');
-  const messageInput = document.getElementById('msg-input');
-
-  if (sendButton) {
-    sendButton.addEventListener('click', function(e) {
-      e.preventDefault();
-      if (window._sendMessage) window._sendMessage();
-    });
-  }
-
-  if (messageInput) {
-    messageInput.addEventListener('keydown', function(e) {
-      if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
-        e.preventDefault();
-        if (window._sendMessage) window._sendMessage();
-      }
-    });
-  }
 
 })();
